@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DISCOUNT AI</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark">D</span>
+        <div>
+          <strong>DISCOUNT AI</strong>
+          <small>Buy Smarter. Not Just Cheaper.</small>
+        </div>
+      </div>
+      <button id="settings-toggle" class="icon-button" type="button" title="Settings">⚙</button>
+    </header>
+
+    <main>
+      <section id="account-bar" class="account-bar">
+        <span id="account-label">Demo mode · not signed in</span>
+        <button id="logout-button" class="link-button hidden" type="button">Log out</button>
+      </section>
+
+      <section id="settings-panel" class="panel hidden">
+        <h2>Connection</h2>
+        <label>API base URL<input id="api-base" type="url" placeholder="http://127.0.0.1:8000" /></label>
+        <label>Web app URL<input id="web-base" type="url" placeholder="http://localhost:3000" /></label>
+        <button id="save-config" class="secondary" type="button">Save connection</button>
+        <h2>Sign in for alerts</h2>
+        <label>Email<input id="login-email" type="email" autocomplete="username" placeholder="demo@discountai.in" /></label>
+        <label>Password<input id="login-password" type="password" autocomplete="current-password" /></label>
+        <button id="login-button" type="button">Log in</button>
+        <p class="fineprint">Demo account: demo@discountai.in / DemoPass123!. The token is stored in this browser profile only. Use a demo account or your own account.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Detected product</h2>
+          <span id="detection-source" class="pill">checking page</span>
+        </div>
+        <p id="detected-name" class="product-name">Reading the active tab…</p>
+        <p id="detected-meta" class="meta"></p>
+        <label class="query-label">Search query
+          <input id="query" type="text" placeholder="Product name or model" />
+        </label>
+        <button id="compare-button" type="button">Compare exact-variant prices</button>
+      </section>
+
+      <section id="status" class="status hidden"></section>
+
+      <section id="result" class="card hidden">
+        <div class="section-head">
+          <h2>Price intelligence</h2>
+          <span id="result-demo" class="pill warning hidden">Demo data</span>
+        </div>
+        <p id="result-name" class="product-name"></p>
+        <p id="result-summary" class="meta"></p>
+        <div id="price-gap" class="price-gap hidden"></div>
+        <ol id="listing-list" class="listing-list"></ol>
+        <div class="actions">
+          <a id="open-product" class="button secondary" target="_blank" rel="noopener">Open full analysis</a>
+          <a id="open-cheapest" class="button" target="_blank" rel="noopener noreferrer nofollow sponsored">Go to cheapest store</a>
+        </div>
+        <div class="alert-box">
+          <h3>Create a price alert</h3>
+          <p class="fineprint">We store the alert on your DISCOUNT AI account. Delivery remains in-app unless you configure another channel in the web app.</p>
+          <label>Target price (₹)<input id="target-price" type="number" min="1" step="1" /></label>
+          <button id="alert-button" class="secondary" type="button">Create alert</button>
+        </div>
+        <p id="disclaimer" class="fineprint"></p>
+      </section>
+
+      <section class="note">
+        <strong>Honest data:</strong> seeded retailer prices are labelled demo data. Verify final price, coupon eligibility and seller before purchase. Commission never affects ranking.
+      </section>
+    </main>
+
+    <footer>
+      <a id="open-web" href="http://localhost:3000" target="_blank" rel="noopener">Open DISCOUNT AI</a>
+      <span>Extension v0.1.0</span>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

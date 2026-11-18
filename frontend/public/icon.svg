@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DISCOUNT AI">
+  <rect width="512" height="512" rx="112" fill="#0f766e"/>
+  <path d="M140 120h118c92 0 150 52 150 136s-58 136-150 136H140V120zm74 68v136h40c50 0 78-25 78-68s-28-68-78-68h-40z" fill="#f0fdfa"/>
+  <circle cx="382" cy="372" r="46" fill="#f59e0b"/>
+  <path d="M362 372l14 14 27-30" fill="none" stroke="#451a03" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
