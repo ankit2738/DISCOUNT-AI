@@ -36,6 +36,7 @@ No unauthorized scraping is performed. `/api/integrations/status` and `/api/admi
 | PostgreSQL | Functional local Docker | Alembic migration applied; health reports `postgresql+psycopg`. |
 | Chrome extension | Functional local/manual load | MV3 package in `extension/` with Amazon/Flipkart/generic parser, exact-variant resolve/intelligence calls and parser/API Playwright coverage. Not published to the Chrome Web Store. |
 | PWA | Functional local | Manifest, PNG icons, service worker and `/offline`; private routes and `/api` are never cached. |
+| Final delivery packages | Verified | Source, extension and documentation ZIPs passed `unzip -t`; final PDF present; external integrations remain unconfigured. |
 
 ## Admin integration view
 

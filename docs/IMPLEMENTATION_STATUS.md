@@ -96,8 +96,21 @@ Notable behaviour:
 | `/api/health` | PostgreSQL connected; actual counts returned |
 | `/api` proxy through frontend | Verified, including `/api/extension/resolve` |
 | New routes | `/dashboard/memory`, `/offline` and dedicated admin pages HTTP 200 |
+| Final workflow smoke | 14 authenticated API checks passed |
+| Persistence and permissions | 11 Docker-backed checks passed |
+| Extension-focused Playwright | 3 passed |
+| Final archives | Source, extension and documentation ZIPs passed `unzip -t`; PDF present |
 
 See `docs/TEST_REPORT.md` for commands and caveats.
+
+## Final deliverables
+
+- `releases/final/DISCOUNT_AI_FINAL.zip` — complete runnable source and documentation.
+- `releases/final/DISCOUNT_AI_CHROME_EXTENSION.zip` — load-ready Chrome MV3 package.
+- `releases/final/DISCOUNT_AI_DOCUMENTATION.zip` — documentation and final reports.
+- `releases/final/DISCOUNT_AI_FINAL_REPORT.pdf` — printable final verification report.
+- `releases/final/FINAL_ACCEPTANCE_MATRIX.md` — requirement-by-requirement grading.
+- `releases/final/PROJECT_FINAL_STATUS.md` — run commands, URLs, credentials, test results and integration requirements.
 
 ## Acceptance matrix
 

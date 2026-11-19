@@ -11,8 +11,12 @@ Last verified: 2026-11-19 (Asia/Kolkata local machine, macOS, Apple silicon).
 | Frontend unit | `cd frontend && npm test` | **16 passed** in 4 files |
 | Frontend production build | `cd frontend && npm run build` | **Passed**, 44 routes |
 | Browser smoke | `cd frontend && npm run test:e2e` | **12 passed** Chromium |
+| Extension-focused Playwright | `npx playwright test e2e/extension.spec.ts` | **3 passed** Chromium |
+| Persistence and permissions | Authenticated Docker PostgreSQL/restart script | **11 checks passed** |
 | Docker build | `docker compose build` | Backend, worker, beat, frontend built |
 | Docker runtime | `docker compose up -d` | db/redis/backend healthy; worker/beat/frontend up |
+| Final workflow smoke | Authenticated API script through frontend proxy | **14 checks passed** |
+| Final archives | `unzip -t` on all release ZIPs | **Passed** |
 
 ## Backend
 
@@ -74,6 +78,14 @@ Passing scenarios:
 
 Result: **12 passed**. Chromium `159.0.8154.6` installed via `npx playwright install chromium`.
 
+## Persistence and permissions
+
+A Docker-backed script verified invalid-password rejection, shopper/seller denial from admin APIs, admin access, seller workspace access, demo user persistence, shopping-memory creation and PostgreSQL persistence across a backend restart, followed by test-record deletion. All 11 checks passed.
+
+## Final workflow smoke
+
+An authenticated smoke script exercised the running Docker stack through the frontend proxy and passed: demo/seller/admin login, product search, exact-variant comparison, offers, price history, alerts, grounded AI conversation, shopping memory, extension resolve, extension intelligence, marketplace listings, seller workspace, admin overview and admin integrations.
+
 ## Docker verification
 
 Commands:
@@ -106,6 +118,8 @@ Verified:
 - `allowedDevOrigins` includes localhost/127.0.0.1 for Playwright dev-server stability.
 - Docker health checks use Python stdlib for the backend and `pg_isready`/`redis-cli` for dependencies.
 - Backend container command runs `alembic upgrade head` before Uvicorn.
+- PostgreSQL Alembic current/head was verified as `2f6a9c31b7d4`.
+- All final release ZIPs were checked with `unzip -t` and inspected for excluded secrets/caches. The source archive was also extracted and its backend suite rerun successfully.
 
 ## Not tested / not claimed
 
