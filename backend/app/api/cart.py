@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -49,13 +48,16 @@ def _cart_payload(db: Session, cart: ShoppingCart) -> dict:
     items = db.scalars(select(CartItem).where(CartItem.cart_id == cart.id)).all()
     payloads = []
     subtotal = Decimal("0")
+    delivery_total = Decimal("0")
     for item in items:
         listing = db.get(ProductListing, item.listing_id)
         if listing is None:
             continue
         effective = effective_price(db, listing)
         line_total = Decimal(listing.price) * item.quantity
+        line_delivery = Decimal(listing.delivery_charge) * item.quantity
         subtotal += line_total
+        delivery_total += line_delivery
         payloads.append(
             {
                 "id": item.id,
@@ -63,6 +65,7 @@ def _cart_payload(db: Session, cart: ShoppingCart) -> dict:
                 "listing": basic_listing_payload(listing, db),
                 "effective": effective,
                 "line_total": money(line_total),
+                "line_delivery": money(line_delivery),
                 "added_at": item.added_at.isoformat(),
             }
         )
@@ -72,6 +75,8 @@ def _cart_payload(db: Session, cart: ShoppingCart) -> dict:
         "items": payloads,
         "item_count": len(payloads),
         "subtotal": money(subtotal),
+        "delivery_total": money(delivery_total),
+        "pre_offer_total": money(subtotal + delivery_total),
         "is_demo_pricing": any(item["listing"]["is_demo"] for item in payloads),
     }
 
@@ -178,7 +183,9 @@ def optimize_cart(
             eff = effective_price(db, option)
             priced.append((Decimal(str(eff["effective_price"])), option, eff))
         priced.sort(key=lambda item: item[0])
-        cheapest_price, cheapest, eff = priced[0]
+        _, cheapest, eff = priced[0]
+        line_merchandise = Decimal(cheapest.price) * quantity
+        line_delivery = Decimal(cheapest.delivery_charge) * quantity
         lines.append(
             {
                 "product_id": listing.product_id,
@@ -189,8 +196,10 @@ def optimize_cart(
                 "recommended_listing_id": cheapest.id,
                 "recommended_listing": basic_listing_payload(cheapest, db),
                 "unit_effective_price": eff["effective_price"],
-                "line_effective_total": money(cheapest_price * quantity),
-                "coupon": eff["coupon"],
+                "line_merchandise_total": money(line_merchandise),
+                "line_delivery_total": money(line_delivery),
+                "line_pre_offer_total": money(line_merchandise + line_delivery),
+                "coupon_already_applied": eff["coupon"] is not None,
                 "switched": cheapest.id != listing.id,
             }
         )
@@ -203,10 +212,13 @@ def optimize_cart(
     stores = []
     grand_total = Decimal("0")
     for retailer_id, group_lines in groups.items():
-        subtotal = sum(Decimal(str(line["line_effective_total"])) for line in group_lines)
         product_subtotal = sum(
             Decimal(str(line["recommended_listing"]["price"])) * line["quantity"] for line in group_lines
         )
+        delivery_subtotal = sum(
+            Decimal(str(line["line_delivery_total"])) for line in group_lines
+        )
+        base_subtotal = product_subtotal + delivery_subtotal
         product_ids = {line["product_id"] for line in group_lines}
         coupons = db.scalars(
             select(Coupon).where(Coupon.retailer_id == retailer_id, Coupon.is_verified.is_(True))
@@ -219,10 +231,9 @@ def optimize_cart(
             expires = coupon.expires_at
             if expires is not None and (expires if expires.tzinfo else expires.replace(tzinfo=timezone.utc)) < datetime.now(timezone.utc):
                 continue
-            base = product_subtotal
-            if base < coupon.min_order:
+            if base_subtotal < coupon.min_order:
                 continue
-            value = coupon_discount(coupon, base)
+            value = coupon_discount(coupon, base_subtotal)
             if value > best_coupon_value:
                 best_coupon_obj = coupon
                 best_coupon_value = value
@@ -230,14 +241,15 @@ def optimize_cart(
         bank_offer_obj = None
         bank_value = Decimal("0")
         cashback_value = Decimal("0")
+        after_coupon = max(Decimal("0"), base_subtotal - best_coupon_value)
         if payload.bank_offer_id is not None:
             offer = db.get(BankOffer, payload.bank_offer_id)
             if offer is not None:
                 eligible, reason = bank_offer_eligible(
-                    offer, product_subtotal, payload.card_type, retailer_id
+                    offer, after_coupon, payload.card_type, retailer_id
                 )
                 if eligible:
-                    value = bank_offer_discount(offer, product_subtotal)
+                    value = bank_offer_discount(offer, after_coupon)
                     if offer.is_cashback:
                         cashback_value = value
                         bank_offer_obj = offer
@@ -247,14 +259,15 @@ def optimize_cart(
                 else:
                     warnings.append(f"Bank offer not applied for retailer {retailer_id}: {reason}")
 
-        store_total = max(Decimal("0"), subtotal - best_coupon_value - bank_value)
+        store_total = max(Decimal("0"), after_coupon - bank_value)
         grand_total += store_total
         stores.append(
             {
                 "retailer_id": retailer_id,
                 "items": group_lines,
                 "product_subtotal": money(product_subtotal),
-                "delivery_and_coupon_subtotal": money(subtotal),
+                "delivery_subtotal": money(delivery_subtotal),
+                "pre_offer_subtotal": money(base_subtotal),
                 "applied_coupon": coupon_payload(best_coupon_obj) if best_coupon_obj else None,
                 "coupon_discount": money(best_coupon_value),
                 "applied_bank_offer": bank_offer_payload(bank_offer_obj) if bank_offer_obj else None,

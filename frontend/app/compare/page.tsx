@@ -57,6 +57,23 @@ function CompareContent() {
     return <main className="mx-auto max-w-7xl px-4 py-16"><p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Building exact-variant comparison...</p></main>;
   }
 
+  if (comparison.listings.length === 0) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16">
+        <h1 className="text-2xl font-bold">No exact-variant listings yet</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We could not find an exact match for {comparison.product.name} · {comparison.variant.name}. Try another variant or check back later.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {comparison.variants.filter((variant) => variant.id !== comparison.variant.id).map((variant) => (
+            <Button key={variant.id} variant="outline" onClick={() => chooseVariant(variant.id)}>{variant.name}</Button>
+          ))}
+          <Button asChild><Link href={`/products/${comparison.product.slug}`}>Back to product</Link></Button>
+        </div>
+      </main>
+    );
+  }
+
   const highest = comparison.listings[comparison.listings.length - 1];
   const cheapest = comparison.listings[0];
   const savings = highest.effective.effective_price - cheapest.effective.effective_price;

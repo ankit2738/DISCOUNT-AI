@@ -62,6 +62,7 @@ export default function ProductPage() {
   const [targetPrice, setTargetPrice] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -87,10 +88,11 @@ export default function ProductPage() {
     if (!product || !variantId) return;
     const controller = new AbortController();
     setComparison(null);
+    setCompareError(null);
     apiFetch<Comparison>(`/api/comparison?product_id=${product.id}&variant_id=${variantId}`, { signal: controller.signal })
       .then(setComparison)
       .catch((fetchError) => {
-        if (!controller.signal.aborted) setError(fetchError instanceof Error ? fetchError.message : "Could not compare this variant");
+        if (!controller.signal.aborted) setCompareError(fetchError instanceof Error ? fetchError.message : "Could not compare this variant");
       });
     return () => controller.abort();
   }, [product, variantId]);
@@ -260,6 +262,12 @@ export default function ProductPage() {
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-card p-3 text-sm">
           <span>{notice}</span>
           <button type="button" className="text-xs text-muted-foreground" onClick={() => setNotice(null)}>Dismiss</button>
+        </div>
+      )}
+
+      {compareError && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Product details loaded, but exact-variant comparison is temporarily unavailable: {compareError}
         </div>
       )}
 

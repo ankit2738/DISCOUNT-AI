@@ -27,6 +27,7 @@ from app.models import (
     Retailer,
     ReturnPolicy,
     SaleCampaign,
+    ShoppingMemory,
     User,
     UserProfile,
     Watchlist,
@@ -482,6 +483,7 @@ def seed_database(db: Session) -> None:
     db.flush()
     db.add(
         WarrantyRecord(
+            user_id=demo.id,
             purchase_id=purchase.id,
             product_id=purchase_listing.product_id,
             variant_id=purchase_listing.variant_id,
@@ -507,5 +509,27 @@ def seed_database(db: Session) -> None:
     )
     db.add(Watchlist(user_id=demo.id, product_id=products[0].id, list_type="saved"))
     db.add(Watchlist(user_id=demo.id, product_id=products[2].id, list_type="watchlist"))
+    db.add_all(
+        [
+            ShoppingMemory(
+                user_id=demo.id,
+                memory_type="budget",
+                memory_key="smartphone_budget",
+                memory_value="Under Rs 75,000 unless the deal score is excellent.",
+                context={"category": "Smartphones"},
+                source="explicit",
+                consent=True,
+            ),
+            ShoppingMemory(
+                user_id=demo.id,
+                memory_type="brand",
+                memory_key="preferred_brands",
+                memory_value="Apple, Samsung, Lenovo",
+                context={"note": "Demo explicit preference used by Copilot context."},
+                source="explicit",
+                consent=True,
+            ),
+        ]
+    )
 
     db.commit()

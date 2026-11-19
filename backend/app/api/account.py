@@ -10,11 +10,15 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import (
+    AIConversation,
+    AIMessage,
     PriceAlert,
     Product,
     ProductListing,
+    ProductVariant,
     Purchase,
     RecurringPurchase,
+    ShoppingMemory,
     User,
     UserProfile,
     WarrantyRecord,
@@ -268,15 +272,16 @@ def delete_recurring(
 
 @router.get("/api/warranty")
 def list_warranty(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    product_ids = {
-        purchase.product_id
-        for purchase in db.scalars(select(Purchase).where(Purchase.user_id == user.id)).all()
-    }
-    records = db.scalars(select(WarrantyRecord).where(WarrantyRecord.product_id.in_(product_ids))).all() if product_ids else []
+    records = db.scalars(
+        select(WarrantyRecord)
+        .where(WarrantyRecord.user_id == user.id)
+        .order_by(WarrantyRecord.id.desc())
+    ).all()
     return {
         "items": [
             {
                 "id": record.id,
+                "purchase_id": record.purchase_id,
                 "product_id": record.product_id,
                 "retailer_id": record.retailer_id,
                 "warranty_months": record.warranty_months,
@@ -297,9 +302,22 @@ def create_warranty(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if db.get(Product, payload.product_id) is None:
+    product = db.get(Product, payload.product_id)
+    if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
+    if payload.variant_id is not None:
+        variant = db.get(ProductVariant, payload.variant_id)
+        if variant is None or variant.product_id != product.id:
+            raise HTTPException(status_code=400, detail="Variant does not belong to this product")
+    if payload.purchase_id is not None:
+        purchase = db.get(Purchase, payload.purchase_id)
+        if purchase is None or purchase.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Purchase not found")
+        if purchase.product_id != product.id or purchase.retailer_id != payload.retailer_id:
+            raise HTTPException(status_code=400, detail="Warranty must match the tracked purchase")
     record = WarrantyRecord(
+        user_id=user.id,
+        purchase_id=payload.purchase_id,
         product_id=payload.product_id,
         variant_id=payload.variant_id,
         retailer_id=payload.retailer_id,
@@ -322,6 +340,15 @@ def privacy_export(user: User = Depends(get_current_user), db: Session = Depends
     purchases = db.scalars(select(Purchase).where(Purchase.user_id == user.id)).all()
     recurring = db.scalars(select(RecurringPurchase).where(RecurringPurchase.user_id == user.id)).all()
     watchlist = db.scalars(select(Watchlist).where(Watchlist.user_id == user.id)).all()
+    memories = db.scalars(select(ShoppingMemory).where(ShoppingMemory.user_id == user.id)).all()
+    warranties = db.scalars(select(WarrantyRecord).where(WarrantyRecord.user_id == user.id)).all()
+    conversations = db.scalars(select(AIConversation).where(AIConversation.user_id == user.id)).all()
+    conversation_ids = [conversation.id for conversation in conversations]
+    messages = (
+        db.scalars(select(AIMessage).where(AIMessage.conversation_id.in_(conversation_ids))).all()
+        if conversation_ids
+        else []
+    )
     preferences = user.preferences
     return {
         "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -347,5 +374,30 @@ def privacy_export(user: User = Depends(get_current_user), db: Session = Depends
         "purchases": [{"id": purchase.id, "product_id": purchase.product_id, "price": money(purchase.price)} for purchase in purchases],
         "recurring_purchases": [{"id": record.id, "label": record.label} for record in recurring],
         "watchlist": [{"id": item.id, "product_id": item.product_id, "list_type": item.list_type} for item in watchlist],
+        "warranty_records": [
+            {"id": record.id, "product_id": record.product_id, "provider": record.provider}
+            for record in warranties
+        ],
+        "shopping_memory": [
+            {
+                "memory_type": memory.memory_type,
+                "memory_key": memory.memory_key,
+                "memory_value": memory.memory_value,
+                "consent": memory.consent,
+            }
+            for memory in memories
+        ],
+        "ai_conversations": [
+            {
+                "id": conversation.id,
+                "title": conversation.title,
+                "messages": [
+                    {"role": message.role, "content": message.content}
+                    for message in messages
+                    if message.conversation_id == conversation.id
+                ],
+            }
+            for conversation in conversations
+        ],
         "notice": "This export is provided for DPDP access/deletion workflows. Review with qualified counsel before production use.",
     }

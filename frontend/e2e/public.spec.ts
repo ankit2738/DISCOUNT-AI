@@ -51,3 +51,57 @@ test("comparison page shows sorted exact-variant retailer cards", async ({ page,
   await expect(page.getByText(/Amazon|Flipkart|Croma/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Go to / }).first()).toBeVisible();
 });
+
+test("shopper can add and delete a shopping memory", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("demo@discountai.in");
+  await page.getByLabel("Password").fill("DemoPass123!");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/dashboard/memory");
+  await expect(page.getByRole("heading", { name: /Shopping memory/i })).toBeVisible();
+  const key = `e2e preference ${Date.now()}`;
+  await page.getByLabel("Key").fill(key);
+  await page.getByLabel("Value").fill("50000");
+  await page.getByRole("button", { name: "Save memory" }).click();
+  await expect(page.getByText(key)).toBeVisible();
+
+  const memoryRow = page.locator("div.rounded-lg.border.p-3").filter({ hasText: key }).first();
+  await memoryRow.getByRole("button", { name: "Delete memory" }).click();
+  await expect(page.getByText(key)).toHaveCount(0);
+});
+
+test("seller workspace exposes listings and dispute controls", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("seller@discountai.in");
+  await page.getByLabel("Password").fill("SellerPass123!");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/dashboard/marketplace");
+  await expect(page.getByRole("heading", { name: "Coupon marketplace" })).toBeVisible();
+  await expect(page.getByText("Seller workspace")).toBeVisible();
+  await expect(page.getByText(/Sandbox payout/i)).toBeVisible();
+  await expect(page.getByText(/Marketplace safety/i)).toBeVisible();
+});
+
+test("admin dedicated product, analytics and audit routes load", async ({ page }) => {
+  await page.goto("/login?next=/admin");
+  await page.getByLabel("Email").fill("admin@discountai.in");
+  await page.getByLabel("Password").fill("AdminPass123!");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
+  await page.goto("/admin/products");
+  await expect(page.getByRole("heading", { name: "Products" })).toBeVisible();
+  await page.goto("/admin/analytics");
+  await expect(page.getByRole("heading", { name: "Analytics" })).toBeVisible();
+  await page.goto("/admin/audit");
+  await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+});
+
+test("offline fallback page is available", async ({ page }) => {
+  await page.goto("/offline");
+  await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
+});

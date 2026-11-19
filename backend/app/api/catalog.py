@@ -436,7 +436,12 @@ def warranty_compare(product_id: int, db: Session = Depends(get_db)):
     retail_policies = db.scalars(
         select(ReturnPolicy).where(ReturnPolicy.retailer_id.in_(retailer_ids))
     ).all()
-    warranties = db.scalars(select(WarrantyRecord).where(WarrantyRecord.product_id == product.id)).all()
+    warranties = db.scalars(
+        select(WarrantyRecord).where(
+            WarrantyRecord.product_id == product.id,
+            WarrantyRecord.user_id.is_(None),
+        )
+    ).all()
     retailers = {retailer.id: retailer for retailer in db.scalars(select(Retailer)).all()}
     return {
         "product_id": product.id,

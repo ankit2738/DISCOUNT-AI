@@ -1,7 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const backendCommand =
-  "rm -f /tmp/discount-ai-e2e.db && ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000";
+const backendPort = process.env.E2E_BACKEND_PORT ?? "8100";
+const frontendPort = process.env.E2E_FRONTEND_PORT ?? "3100";
+const backendUrl = `http://127.0.0.1:${backendPort}`;
+const frontendUrl = `http://127.0.0.1:${frontendPort}`;
+const backendCommand = `rm -f /tmp/discount-ai-e2e.db && ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port ${backendPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,7 +14,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: frontendUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -25,8 +28,8 @@ export default defineConfig({
     {
       command: backendCommand,
       cwd: "../backend",
-      url: "http://127.0.0.1:8000/health",
-      reuseExistingServer: !process.env.CI,
+      url: `${backendUrl}/health`,
+      reuseExistingServer: false,
       timeout: 120_000,
       env: {
         ...process.env,
@@ -39,13 +42,13 @@ export default defineConfig({
       },
     },
     {
-      command: "npm run dev",
-      url: "http://localhost:3000",
-      reuseExistingServer: !process.env.CI,
+      command: `npm run dev -- -p ${frontendPort}`,
+      url: frontendUrl,
+      reuseExistingServer: false,
       timeout: 120_000,
       env: {
         ...process.env,
-        BACKEND_URL: "http://127.0.0.1:8000",
+        BACKEND_URL: backendUrl,
       },
     },
   ],

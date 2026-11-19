@@ -14,9 +14,11 @@ from app.api import (
     catalog,
     community,
     contact,
+    extension,
     health,
     integrations,
     marketplace,
+    memory,
     notifications,
     offers,
 )
@@ -25,10 +27,12 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(account.router)
+api_router.include_router(memory.router)
 api_router.include_router(catalog.router)
 api_router.include_router(offers.router)
 api_router.include_router(ai.router)
 api_router.include_router(cart.router)
+api_router.include_router(extension.router)
 api_router.include_router(alerts.router)
 api_router.include_router(community.router)
 api_router.include_router(contact.router)

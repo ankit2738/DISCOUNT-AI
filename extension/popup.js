@@ -1,3 +1,7 @@
+if (new URLSearchParams(location.search).has("panel")) {
+  document.body.classList.add("sidepanel");
+}
+
 const state = {
   config: null,
   detection: null,
@@ -22,7 +26,7 @@ function runtime(message) {
 function tabMessage(tabId, message) {
   return new Promise((resolve, reject) => {
     chrome.tabs.sendMessage(tabId, message, (response) => {
-      if (chrome.runtime.lastError) return reject(new Error("Could not read this page. Reload it after installing the extension."));
+      if (chrome.runtime.lastError) return reject(new Error("Could not read this page. Reload the tab after installing the extension."));
       if (!response?.ok) return reject(new Error(response?.error || "Could not detect the product."));
       resolve(response);
     });
@@ -58,25 +62,35 @@ function applyConfig(config) {
   $("open-web").href = config.webBase || "http://localhost:3000";
 }
 
+function variantLabel(variant) {
+  if (!variant) return "Exact variant not resolved";
+  const attrs = Object.entries(variant.attributes || {}).map(([key, value]) => `${key}: ${value}`).join(" · ");
+  return `${variant.name || variant.sku}${attrs ? ` · ${attrs}` : ""}`;
+}
+
 async function detectPage() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error("No active tab.");
     const response = await tabMessage(tab.id, { type: "DETECT_PRODUCT" });
-    state.detection = response.product;
-    $("detected-name").textContent = response.product.name || "Product name not detected";
+    const product = response.product;
+    state.detection = product;
+    $("detected-name").textContent = product.name || "Product name not detected";
+    $("detected-variant").textContent = product.variantHint ? `Selected page variant: ${product.variantHint}` : "Variant inferred from product title";
     $("detected-meta").textContent = [
-      response.product.retailer || "unknown retailer",
-      response.product.price ? `page price ${inr.format(response.product.price)}` : "page price not detected",
-      response.product.source === "json_ld" ? "structured data" : "page metadata",
+      product.retailerName || product.retailer || "unknown retailer",
+      product.price ? `page price ${inr.format(product.price)}` : "page price not detected",
+      product.sku ? `ID ${product.sku}` : "no retailer ID",
     ].join(" · ");
-    $("detection-source").textContent = response.product.source === "json_ld" ? "verified markup" : "best effort";
-    $("query").value = response.product.query || "";
-    $("compare-button").disabled = !response.product.query;
-    if (response.product.query) await compare();
+    $("detection-source").textContent = product.confidence === "high" ? "structured data" : product.isProductPage ? "product page" : "not a product page";
+    $("query").value = product.query || "";
+    $("compare-button").disabled = !product.query;
+    if (product.isProductPage && product.query) await analyse(product);
+    else showStatus("Open an Amazon.in or Flipkart product page, or search for an exact model.", "ok");
   } catch (error) {
     $("detected-name").textContent = "Open a product page to detect it.";
     $("detected-meta").textContent = error.message;
+    $("detected-variant").textContent = "";
     $("detection-source").textContent = "unavailable";
     $("compare-button").disabled = true;
   }
@@ -101,60 +115,192 @@ function listingNode(listing, rank) {
   return item;
 }
 
+function renderHistory(history) {
+  const svg = $("history-chart");
+  const points = (history.points || []).filter((point) => point.price !== null);
+  svg.replaceChildren();
+  if (points.length < 2) {
+    $("history-note").textContent = "Not enough tracked history to draw a chart.";
+    $("history-range").textContent = "";
+    return;
+  }
+  const values = points.map((point) => point.price);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(1, max - min);
+  const step = 360 / (points.length - 1);
+  const coordinates = points.map((point, index) => {
+    const x = index * step;
+    const y = 68 - ((point.price - min) / span) * 58;
+    return [x, y];
+  });
+  const ns = "http://www.w3.org/2000/svg";
+  const area = document.createElementNS(ns, "path");
+  area.setAttribute("d", `M0 72 L${coordinates.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L")} L360 72 Z`);
+  area.setAttribute("class", "history-area");
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", coordinates.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" "));
+  line.setAttribute("class", "history-line");
+  svg.append(area, line);
+  $("history-range").textContent = `${inr.format(min)} – ${inr.format(max)}`;
+  $("history-note").textContent = `${history.days || points.length} tracked days · average ${history.average ? inr.format(history.average) : "unavailable"}${history.is_demo ? " · demo history" : ""}`;
+}
+
+function renderEvidence(deal) {
+  const list = $("deal-evidence");
+  list.replaceChildren();
+  for (const evidence of deal.evidence || []) {
+    const item = document.createElement("li");
+    item.textContent = evidence.description;
+    list.append(item);
+  }
+  $("deal-summary").textContent = (deal.explanation || []).slice(-2).join(" ");
+}
+
+function renderOffers(intelligence) {
+  const list = $("offer-list");
+  list.replaceChildren();
+  for (const coupon of intelligence.coupons || []) {
+    const item = document.createElement("li");
+    const title = document.createElement("strong");
+    title.textContent = `${coupon.code} · ${coupon.title}`;
+    const detail = document.createElement("span");
+    detail.textContent = `${coupon.expires_at ? `expires ${new Date(coupon.expires_at).toLocaleDateString()}` : "expiry not listed"} · ${coupon.is_demo ? "demo" : "verified"}`;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "link-button";
+    copy.textContent = "Copy code";
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(coupon.code);
+      copy.textContent = "Copied";
+    });
+    item.append(title, detail, copy);
+    list.append(item);
+  }
+  for (const offer of intelligence.bank_offers || []) {
+    const item = document.createElement("li");
+    const title = document.createElement("strong");
+    title.textContent = `${offer.bank_name} ${offer.card_type} · ${offer.title}`;
+    const detail = document.createElement("span");
+    detail.textContent = [
+      offer.estimated_discount ? `up to ${inr.format(offer.estimated_discount)}` : "offer available",
+      offer.expires_at ? `expires ${new Date(offer.expires_at).toLocaleDateString()}` : "expiry not listed",
+      offer.is_cashback ? "cashback is not an immediate discount" : "",
+      offer.is_demo ? "demo" : "verified",
+    ].filter(Boolean).join(" · ");
+    item.append(title, detail);
+    list.append(item);
+  }
+  if (!list.children.length) {
+    const item = document.createElement("li");
+    item.textContent = "No verified coupon or eligible bank offer is recorded for this listing.";
+    list.append(item);
+  }
+}
+
+function renderAlternatives(intelligence) {
+  const list = $("alternative-list");
+  list.replaceChildren();
+  const alternatives = intelligence.alternatives?.alternatives || [];
+  if (!alternatives.length) {
+    const item = document.createElement("li");
+    item.textContent = "No comparable tracked alternative found.";
+    list.append(item);
+    return;
+  }
+  for (const alternative of alternatives.slice(0, 3)) {
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = `${state.config.webBase}/products/${alternative.slug}`;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = alternative.name;
+    const detail = document.createElement("span");
+    detail.textContent = `from ${inr.format(alternative.lowest_effective_price)} · value score ${alternative.value_score}`;
+    item.append(link, detail);
+    list.append(item);
+  }
+}
+
 function renderResult(result) {
-  const section = $("result");
-  const product = result.product;
-  const comparison = result.comparison;
-  const cheapest = comparison.listings?.find((listing) => listing.is_cheapest_effective) || comparison.listings?.[0];
-  section.classList.remove("hidden");
-  $("result-name").textContent = product.name;
-  $("result-summary").textContent = `${product.brand || "Unknown brand"} · ${product.category || "uncategorised"} · ${comparison.listings?.length || 0} exact-variant retailer${comparison.listings?.length === 1 ? "" : "s"}`;
-  $("result-demo").classList.toggle("hidden", !product.is_demo);
+  const intelligence = result.intelligence;
+  const match = result.match;
+  const listing = intelligence.listing;
+  const cheapest = (intelligence.comparison || []).find((item) => item.is_cheapest_effective) || intelligence.comparison?.[0] || listing;
+  $("result").classList.remove("hidden");
+  $("result-name").textContent = match.product.name;
+  $("result-summary").textContent = `${match.product.brand || "Unknown brand"} · ${match.product.category || "uncategorised"} · ${intelligence.comparison?.length || 0} exact-variant retailer${intelligence.comparison?.length === 1 ? "" : "s"}`;
+  $("result-variant").textContent = variantLabel(match.variant);
+  $("result-demo").classList.toggle("hidden", !listing.is_demo);
+  $("match-confidence").textContent = `${match.confidence}% variant match`;
 
   const gap = $("price-gap");
   gap.classList.add("hidden");
   gap.classList.remove("negative");
-  if (state.detection?.price && cheapest?.effective?.effective_price) {
-    const difference = state.detection.price - cheapest.effective.effective_price;
+  if (state.detection?.price && listing.effective?.effective_price) {
+    const difference = state.detection.price - listing.effective.effective_price;
     gap.classList.remove("hidden");
     if (difference > 0) {
-      gap.textContent = `This page is ${inr.format(difference)} above the current catalog effective price. Verify coupon and seller eligibility.`;
+      gap.textContent = `This page is ${inr.format(difference)} above the tracked effective price. Verify coupon and seller eligibility.`;
     } else if (difference < 0) {
       gap.classList.add("negative");
-      gap.textContent = `This page appears ${inr.format(Math.abs(difference))} below the catalog effective price. Check the exact variant and seller.`;
+      gap.textContent = `This page appears ${inr.format(Math.abs(difference))} below the tracked effective price. Check the exact variant and seller.`;
     } else {
-      gap.textContent = "This page matches the catalog effective price.";
+      gap.textContent = "This page matches the tracked effective price.";
     }
   }
 
+  $("deal-score").textContent = `${intelligence.deal_score.score}/100`;
+  $("deal-grade").textContent = intelligence.deal_score.grade;
+  $("deal-confidence").textContent = `${intelligence.deal_score.confidence}% confidence`;
+  $("advice-label").textContent = intelligence.buy_or_wait.recommendation.toUpperCase();
+  $("advice-confidence").textContent = `${intelligence.buy_or_wait.confidence}% confidence`;
+  renderHistory(intelligence.price_history);
+  renderEvidence(intelligence.deal_score);
+
+  const fake = intelligence.fake_discount;
+  $("fake-risk").textContent = `${fake.risk_level} · ${fake.risk_score}/100`;
+  $("fake-risk").className = `pill${["high", "medium"].includes(fake.risk_level) ? " warning" : ""}`;
+  $("fake-summary").textContent = `${fake.summary} ${(fake.evidence || []).map((item) => item.detail).join(" ")} This is a prompt to verify, not an accusation.`;
+
+  $("advice-pill").textContent = intelligence.buy_or_wait.recommendation;
+  $("advice-pill").className = `pill${intelligence.buy_or_wait.recommendation === "wait" ? " warning" : ""}`;
+  const adviceReasons = $("advice-reasons");
+  adviceReasons.replaceChildren();
+  for (const reason of intelligence.buy_or_wait.reasons || []) {
+    const item = document.createElement("li");
+    item.textContent = reason;
+    adviceReasons.append(item);
+  }
+
   const list = $("listing-list");
-  list.replaceChildren(...(comparison.listings || []).slice(0, 4).map((listing, index) => listingNode(listing, index + 1)));
-  $("open-product").href = `${state.config.webBase}/products/${product.slug}`;
+  list.replaceChildren(...(intelligence.comparison || []).map((item, index) => listingNode(item, index + 1)));
+  renderOffers(intelligence);
+  renderAlternatives(intelligence);
+
+  $("open-product").href = `${state.config.webBase}/products/${match.product.slug}`;
   $("open-cheapest").href = cheapest
-    ? `${state.config.apiBase}/api/affiliate/click/${cheapest.id}?source_page=chrome_extension&session_id=${encodeURIComponent(comparison.comparison_session_id)}`
-    : `${state.config.webBase}/products/${product.slug}`;
+    ? `${state.config.apiBase}/api/affiliate/click/${cheapest.id}?source_page=chrome_extension`
+    : `${state.config.webBase}/products/${match.product.slug}`;
   $("open-cheapest").classList.toggle("hidden", !cheapest);
-  $("target-price").value = cheapest?.effective?.effective_price ? Math.max(1, Math.floor(cheapest.effective.effective_price * 0.95)) : "";
-  $("disclaimer").textContent = comparison.disclaimer || "Retailer data may be demo data. Verify before purchase.";
+  $("target-price").value = listing.effective?.effective_price ? Math.max(1, Math.floor(listing.effective.effective_price * 0.95)) : "";
+  $("disclaimer").textContent = [match.disclaimer, intelligence.deal_score?.is_demo ? "Seeded price history and offers are demo data." : ""].filter(Boolean).join(" ");
 }
 
-async function compare(manual = false) {
-  const query = $("query").value.trim();
-  if (query.length < 2) return showStatus("Enter at least two characters to search.");
+async function analyse(detection, query = "") {
   clearStatus();
   $("result").classList.add("hidden");
   setBusy(true);
-  showStatus("Searching exact-variant prices…", "ok");
+  showStatus("Resolving the exact variant and evidence…", "ok");
   try {
-    const response = await runtime({ type: "SEARCH_PRODUCT", query });
+    const response = await runtime({ type: "ANALYSE_PRODUCT", detection, query });
     state.result = response.result;
     if (!response.result.found) {
-      showStatus("No match in the current catalog. The page title may need a more specific brand/model query.");
+      showStatus(response.result.match?.message || "No exact tracked variant matched. Not comparing a different model or configuration.");
       return;
     }
     clearStatus();
     renderResult(response.result);
-    if (manual) showStatus("Comparison loaded.", "ok");
   } catch (error) {
     showStatus(error.message);
   } finally {
@@ -162,8 +308,16 @@ async function compare(manual = false) {
   }
 }
 
+async function compare(manual = false) {
+  const query = $("query").value.trim();
+  if (query.length < 2) return showStatus("Enter at least two characters to search.");
+  const detection = state.detection || {};
+  await analyse({ ...detection, name: query, title: query }, query);
+  if (manual && state.result?.found) showStatus("Analysis refreshed.", "ok");
+}
+
 async function createAlert() {
-  if (!state.result?.found) return showStatus("Run a comparison before creating an alert.");
+  if (!state.result?.found) return showStatus("Run an exact-variant analysis before creating an alert.");
   if (!state.config?.token) {
     $("settings-panel").classList.remove("hidden");
     return showStatus("Log in with your DISCOUNT AI account to create alerts.");
@@ -175,11 +329,11 @@ async function createAlert() {
   try {
     await runtime({
       type: "ADD_ALERT",
-      product_id: state.result.product.id,
-      variant_id: state.result.comparison.variant?.id,
+      product_id: state.result.match.product.id,
+      variant_id: state.result.match.variant?.id,
       target_price: target,
     });
-    showStatus(`Alert created at ${inr.format(target)}. It will be checked against new price snapshots.`, "ok");
+    showStatus(`Alert created at ${inr.format(target)} for ${state.result.match.variant?.name}.`, "ok");
   } catch (error) {
     showStatus(error.message);
   } finally {
@@ -229,10 +383,20 @@ async function logout() {
   showStatus("Logged out locally.", "ok");
 }
 
+async function openSidePanel() {
+  const current = await chrome.windows.getCurrent();
+  try {
+    await runtime({ type: "OPEN_SIDE_PANEL", windowId: current.id });
+  } catch (error) {
+    showStatus(`${error.message} You can also use Chrome's side-panel menu for DISCOUNT AI.`);
+  }
+}
+
 async function init() {
   const response = await runtime({ type: "GET_CONFIG" });
   applyConfig(response.config);
   $("settings-toggle").addEventListener("click", () => $("settings-panel").classList.toggle("hidden"));
+  $("open-side-panel").addEventListener("click", () => void openSidePanel());
   $("compare-button").addEventListener("click", () => void compare(true));
   $("alert-button").addEventListener("click", () => void createAlert());
   $("login-button").addEventListener("click", () => void login());

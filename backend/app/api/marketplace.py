@@ -31,6 +31,12 @@ from app.services.serializers import money
 router = APIRouter(prefix="/api/marketplace", tags=["Coupon marketplace"])
 
 FORBIDDEN_PAYMENT_KEYS = {"card", "card_number", "cvv", "cvc", "pan", "expiry", "upi_pin", "pin"}
+PLATFORM_FEE_RATE = Decimal("0.05")
+
+
+def _fee_split(amount: Decimal) -> tuple[Decimal, Decimal]:
+    fee = (amount * PLATFORM_FEE_RATE).quantize(Decimal("0.01"))
+    return fee, (amount - fee).quantize(Decimal("0.01"))
 
 
 def _seller_payload(seller: MarketplaceSeller) -> dict:
@@ -70,9 +76,12 @@ def _order_payload(order: MarketplaceOrder, listing: MarketplaceListing | None =
         "buyer_id": order.buyer_id,
         "seller_id": order.seller_id,
         "amount": money(order.amount),
+        "platform_fee": money(order.platform_fee),
+        "seller_payout": money(order.seller_payout),
         "status": order.status,
         "payment_provider": order.payment_provider,
         "delivery_details": order.delivery_details,
+        "refunded_at": order.refunded_at.isoformat() if order.refunded_at else None,
         "created_at": order.created_at.isoformat(),
     }
 
@@ -129,16 +138,20 @@ def seller_me(user: User = Depends(get_current_user), db: Session = Depends(get_
         select(MarketplaceListing).where(MarketplaceListing.seller_id == seller.id).order_by(MarketplaceListing.id.desc())
     ).all()
     orders = db.scalars(select(MarketplaceOrder).where(MarketplaceOrder.seller_id == seller.id)).all()
-    earnings = sum(
-        (order.amount for order in orders if order.status in {"paid_sandbox", "completed"}),
-        Decimal("0"),
-    )
+    completed = [order for order in orders if order.status in {"paid_sandbox", "completed"}]
+    refunded = [order for order in orders if order.status == "refunded"]
+    earnings = sum((order.seller_payout for order in completed), Decimal("0"))
+    gross = sum((order.amount for order in completed), Decimal("0"))
+    fees = sum((order.platform_fee for order in completed), Decimal("0"))
     return {
         "seller": _seller_payload(seller),
         "listings": [_listing_payload(listing) for listing in listings],
         "orders": [_order_payload(order) for order in orders],
+        "gross_sales_sandbox": money(gross),
+        "platform_fees_sandbox": money(fees),
         "earnings_sandbox": money(earnings),
-        "note": "Earnings are sandbox records only; no live payment settlement occurs.",
+        "refunded_orders": len(refunded),
+        "note": "Earnings are sandbox records only and exclude a 5% demo platform fee. No live payment settlement occurs.",
     }
 
 
@@ -153,6 +166,12 @@ def create_marketplace_listing(
         raise HTTPException(status_code=400, detail="Seller profile required")
     if seller.status != "approved":
         raise HTTPException(status_code=403, detail="Seller profile is not approved")
+    if payload.expires_at is not None:
+        expires = payload.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Listing expiry must be in the future")
     listing = MarketplaceListing(
         seller_id=seller.id,
         title=payload.title,
@@ -198,7 +217,32 @@ def create_order(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    listing = db.get(MarketplaceListing, payload.listing_id)
+    if payload.idempotency_key:
+        existing_order = db.scalar(
+            select(MarketplaceOrder).where(
+                MarketplaceOrder.buyer_id == user.id,
+                MarketplaceOrder.idempotency_key == payload.idempotency_key,
+            )
+        )
+        if existing_order is not None:
+            existing_listing = db.get(MarketplaceListing, existing_order.listing_id)
+            existing_tx = db.scalar(
+                select(Transaction).where(
+                    Transaction.order_id == existing_order.id,
+                    Transaction.type == "payment",
+                )
+            )
+            return {
+                **_order_payload(existing_order, existing_listing),
+                "transaction_reference": existing_tx.provider_reference if existing_tx else None,
+                "idempotent_replay": True,
+            }
+
+    listing = db.scalar(
+        select(MarketplaceListing)
+        .where(MarketplaceListing.id == payload.listing_id)
+        .with_for_update()
+    )
     if listing is None or listing.status != "approved":
         raise HTTPException(status_code=404, detail="Approved listing not found")
     seller = db.get(MarketplaceSeller, listing.seller_id)
@@ -213,17 +257,23 @@ def create_order(
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=timezone.utc)
         if expires < datetime.now(timezone.utc):
+            listing.status = "expired"
+            db.commit()
             raise HTTPException(status_code=400, detail="Listing has expired")
     forbidden = FORBIDDEN_PAYMENT_KEYS.intersection({key.lower() for key in payload.delivery_details})
     if forbidden:
         raise HTTPException(status_code=400, detail="Raw payment credentials are not accepted; use the sandbox provider")
 
     reference = f"sbx_{secrets.token_hex(8)}"
+    fee, payout = _fee_split(Decimal(listing.price))
     order = MarketplaceOrder(
         listing_id=listing.id,
         buyer_id=user.id,
         seller_id=seller.id,
         amount=listing.price,
+        platform_fee=fee,
+        seller_payout=payout,
+        idempotency_key=payload.idempotency_key,
         status="paid_sandbox",
         payment_provider="sandbox",
         delivery_details=payload.delivery_details,
@@ -239,16 +289,17 @@ def create_order(
             currency="INR",
             status="paid_sandbox",
             type="payment",
-            meta={"note": "Sandbox transaction; no real money moved."},
+            meta={"note": "Sandbox transaction; no real money moved.", "platform_fee": str(fee), "seller_payout": str(payout)},
         )
     )
     listing.status = "sold"
+    seller.total_sales += 1
     db.commit()
     db.refresh(order)
     return {
         **_order_payload(order, listing),
         "transaction_reference": reference,
-        "note": "Sandbox payment recorded. No live payment was processed and no raw card data is accepted.",
+        "note": "Sandbox payment recorded. No live payment was processed and no raw card data is accepted. The 5% platform fee is a demo calculation.",
     }
 
 
@@ -264,6 +315,16 @@ def create_dispute(
     seller = db.get(MarketplaceSeller, order.seller_id)
     if order.buyer_id != user.id and (seller is None or seller.user_id != user.id):
         raise HTTPException(status_code=403, detail="Only the buyer or seller can open a dispute")
+    existing = db.scalar(
+        select(Dispute).where(
+            Dispute.order_id == order.id,
+            Dispute.status == "open",
+        )
+    )
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="An open dispute already exists for this order")
+    if order.status not in {"paid_sandbox", "completed"}:
+        raise HTTPException(status_code=400, detail="This order cannot be disputed in its current state")
     dispute = Dispute(
         order_id=order.id,
         opened_by=user.id,
@@ -313,11 +374,14 @@ def resolve_dispute_admin(db: Session, dispute: Dispute, payload: DisputeResolut
     order = db.get(MarketplaceOrder, dispute.order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    if dispute.resolved_at is not None or dispute.status.startswith("resolved_"):
+        raise HTTPException(status_code=409, detail="Dispute is already resolved")
     dispute.status = payload.status
     dispute.resolution = payload.resolution
     dispute.resolved_at = datetime.now(timezone.utc)
     if payload.status == "resolved_refunded":
         order.status = "refunded"
+        order.refunded_at = datetime.now(timezone.utc)
         db.add(
             Transaction(
                 order_id=order.id,
@@ -327,11 +391,20 @@ def resolve_dispute_admin(db: Session, dispute: Dispute, payload: DisputeResolut
                 currency="INR",
                 status="refunded_sandbox",
                 type="refund",
-                meta={"note": "Sandbox refund recorded."},
+                meta={
+                    "note": "Sandbox refund recorded.",
+                    "seller_payout_reversed": str(order.seller_payout),
+                },
             )
         )
     else:
         order.status = "completed"
     record_audit(db, admin.id, "marketplace.dispute_resolve", "dispute", dispute.id, after=payload.model_dump())
     db.commit()
-    return {"id": dispute.id, "status": dispute.status, "resolution": dispute.resolution}
+    return {
+        "id": dispute.id,
+        "order_id": order.id,
+        "status": dispute.status,
+        "order_status": order.status,
+        "resolution": dispute.resolution,
+    }

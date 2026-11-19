@@ -465,9 +465,13 @@ class MarketplaceOrder(Base, TimestampMixin):
     buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("marketplace_sellers.id"))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    platform_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    seller_payout: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True)
     status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
     payment_provider: Mapped[str] = mapped_column(String(40), default="sandbox")
     delivery_details: Mapped[dict] = mapped_column(JSON, default=dict)
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Transaction(Base):
@@ -539,10 +543,51 @@ class RecurringPurchase(Base, TimestampMixin):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class ShoppingMemory(Base, TimestampMixin):
+    __tablename__ = "shopping_memory"
+    __table_args__ = (
+        UniqueConstraint("user_id", "memory_type", "memory_key", name="uq_shopping_memory_user_type_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    memory_type: Mapped[str] = mapped_column(String(40), index=True)
+    memory_key: Mapped[str] = mapped_column(String(160))
+    memory_value: Mapped[str] = mapped_column(Text, default="")
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    source: Mapped[str] = mapped_column(String(40), default="explicit")
+    consent: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AIConversation(Base, TimestampMixin):
+    __tablename__ = "ai_conversations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), default="New conversation")
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_conversations.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class WarrantyRecord(Base):
     __tablename__ = "warranty_records"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     purchase_id: Mapped[int | None] = mapped_column(ForeignKey("purchases.id", ondelete="SET NULL"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
     variant_id: Mapped[int | None] = mapped_column(ForeignKey("product_variants.id"))

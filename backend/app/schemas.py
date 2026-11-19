@@ -74,7 +74,8 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=2000)
     budget: Decimal | None = Field(default=None, gt=0)
     category: str | None = None
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, max_length=120)
+    use_personal_context: bool = True
 
 
 class CartItemCreate(BaseModel):
@@ -147,6 +148,7 @@ class MarketplaceListingCreate(BaseModel):
 class MarketplaceOrderCreate(BaseModel):
     listing_id: int
     delivery_details: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=80)
 
 
 class DisputeCreate(BaseModel):
@@ -174,6 +176,7 @@ class RecurringPurchaseCreate(BaseModel):
 
 
 class WarrantyCreate(BaseModel):
+    purchase_id: int | None = None
     product_id: int
     retailer_id: int
     variant_id: int | None = None
@@ -181,6 +184,14 @@ class WarrantyCreate(BaseModel):
     provider: str = Field(min_length=2, max_length=120)
     coverage: str = Field(default="", max_length=2000)
     source_url: str | None = Field(default=None, max_length=600)
+
+
+class MemoryUpsert(BaseModel):
+    memory_type: Literal["preference", "budget", "category", "brand", "note", "shopping_goal"]
+    memory_key: str = Field(min_length=1, max_length=160)
+    memory_value: str = Field(default="", max_length=2000)
+    context: dict[str, Any] = Field(default_factory=dict)
+    consent: bool = True
 
 
 class ProductCreate(BaseModel):

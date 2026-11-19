@@ -1,18 +1,20 @@
 import { notFound, redirect } from "next/navigation";
 
 const CONSOLIDATED_ADMIN_ROUTES: Record<string, string> = {
-  analytics: "/admin/system",
-  products: "/admin/catalog",
+  analytics: "/admin/analytics",
+  products: "/admin/products",
   variants: "/admin/catalog",
-  retailers: "/admin/catalog",
-  prices: "/admin/catalog",
+  retailers: "/admin/retailers",
+  prices: "/admin/prices",
+  "price-records": "/admin/prices",
   coupons: "/admin/offers",
   "bank-offers": "/admin/offers",
-  ai: "/admin/system",
-  affiliate: "/admin/system",
+  integrations: "/admin/integrations",
+  ai: "/admin/integrations",
+  affiliate: "/admin/analytics",
   "api-health": "/admin/system",
   reports: "/admin/community",
-  audit: "/admin/system",
+  audit: "/admin/audit",
 };
 
 export default async function AdminSectionPage({ params }: { params: Promise<{ section: string }> }) {

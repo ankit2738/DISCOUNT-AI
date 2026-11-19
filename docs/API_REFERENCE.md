@@ -103,17 +103,37 @@ Admin routes require role `admin`. Errors use FastAPI’s `{"detail": ...}` shap
 | GET | `/api/recurring-purchases` | User | Recurring purchase reminders. |
 | POST | `/api/recurring-purchases` | User | Create reminder. |
 | DELETE | `/api/recurring-purchases/{record_id}` | User | Delete reminder. |
-| GET | `/api/warranty` | User | Warranty records. |
-| POST | `/api/warranty` | User | Add warranty record. |
+| GET | `/api/warranty` | User | Owner-only warranty records. |
+| POST | `/api/warranty` | User | Add a warranty record owned by the current user. |
 | GET | `/api/privacy/export` | User | User data export. |
+
+## Shopping memory
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/api/memory` | User | List the current user's shopping-memory entries. |
+| POST | `/api/memory` | User | Create/update a memory entry, including consent. |
+| DELETE | `/api/memory/{memory_id}` | User | Delete an owned memory entry. |
+| DELETE | `/api/memory?confirm=true` | User | Clear all owned memory; confirmation required. |
+| GET | `/api/memory/context` | User | Consent-filtered context counts and Copilot context. |
 
 ## AI Copilot
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/api/ai/chat` | Optional | Cart-aware shopping answer; external provider only when configured, otherwise deterministic fallback. |
+| POST | `/api/ai/chat` | Optional | Cart/memory-aware shopping answer; external provider only when configured, otherwise deterministic fallback. Authenticated chats persist a conversation. |
+| GET | `/api/ai/conversations` | User | Own persisted conversations. |
+| GET | `/api/ai/conversations/{conversation_id}` | User | Own conversation with messages. |
+| DELETE | `/api/ai/conversations/{conversation_id}` | User | Delete an owned conversation. |
 | GET | `/api/ai/recommendations` | Optional | Evidence-backed recommendations. |
 | GET | `/api/ai/providers` | — | Provider/fallback status. |
+
+## Browser extension
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/api/extension/resolve` | — | Resolve a retailer page by title, retailer, external ID and variant hint; returns `matched=false` when no exact variant is justified. |
+| GET | `/api/extension/intelligence` | — | Effective price, deal/fake-discount/buy-wait evidence, history, exact-variant comparison, coupons, alternatives and disclosures for a listing. |
 
 ## Community evidence
 
@@ -137,7 +157,9 @@ Admin routes require role `admin`. Errors use FastAPI’s `{"detail": ...}` shap
 | GET | `/api/marketplace/orders` | User | Buyer/seller sandbox orders. |
 | POST | `/api/marketplace/orders` | User | Create sandbox order; rejects raw payment details. |
 | GET | `/api/marketplace/disputes` | User | Own disputes. |
-| POST | `/api/marketplace/disputes` | User | Open dispute. |
+| POST | `/api/marketplace/disputes` | User | Open dispute; duplicate open disputes are rejected. |
+
+Orders are sandbox-only, split a 5% demo platform fee, and accept an optional `Idempotency-Key` header to return the existing order instead of duplicating it. `GET /api/marketplace/seller/me` returns the seller workspace with gross sales, demo fees, payout and refunded-order totals.
 
 ## Campaigns and analytics
 

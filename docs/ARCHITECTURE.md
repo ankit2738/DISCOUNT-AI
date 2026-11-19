@@ -24,11 +24,12 @@ The Next.js server proxies `/api/:path*` to `BACKEND_URL` (default `http://127.0
   - `matching.py` — catalogue search and exact-variant matching.
   - `intelligence.py` — deal score, fake-discount signals, buy/wait advice, alternatives.
   - `serializers.py` — stable API payload builders and money serialisation.
-  - `ai.py` — optional external provider plus deterministic rule-based fallback.
+  - `ai.py` — optional external provider plus deterministic rule-based fallback and persisted conversation context.
+  - `extension.py` — exact-variant resolution for browser-extension page data.
   - `notifications.py` — alert evaluation, in-app records and channel status.
   - `seed.py` — idempotent labelled demo dataset.
 - `app/adapters/` — retailer adapter contracts with fixture-only demo implementations and explicit credential/status reporting.
-- `app/models.py` — 37 SQLAlchemy tables.
+- `app/models.py` — 40 SQLAlchemy tables, including shopping memory and AI conversation persistence.
 - `app/worker.py` — Celery tasks for alerts and demo price refresh.
 
 ## Data flow: price comparison
@@ -48,7 +49,7 @@ The Next.js server proxies `/api/:path*` to `BACKEND_URL` (default `http://127.0
 - `lib/api.ts` — typed `apiFetch`, `ApiError`, query builder, abort support.
 - `lib/types.ts` — shared API response types.
 - `lib/coupon-wallet.ts` — browser-only coupon wallet.
-- PWA: `public/manifest.webmanifest`, `public/sw.js`; service worker caches app shell/static assets and never caches `/api`.
+- PWA: `public/manifest.webmanifest`, `public/sw.js`, `app/offline`; the service worker caches app-shell/static assets and bypasses `/api` plus private dashboard/admin routes.
 
 Most interactive pages are client components that fetch browser-side through the proxy. Server components provide metadata/layout. `useSearchParams` is wrapped in Suspense where needed.
 
@@ -56,9 +57,10 @@ Most interactive pages are client components that fetch browser-side through the
 
 Manifest V3:
 
-- `content.js` — reads JSON-LD Product/Offer, Open Graph/product metadata, then a conservative page fallback; never sends credentials.
-- `background.js` — stores API/web URLs and JWT in `chrome.storage.local`, performs API requests, login and alert creation.
-- `popup.html/js/css` — shows detected page product, exact-variant comparison, cheapest-store handoff through the affiliate endpoint, and price-alert creation.
+- `parser.js` — Amazon/Flipkart/generic page parser for external ID, title, price and selected variant hint.
+- `content.js` — captures the current product page and never sends credentials.
+- `background.js` — stores validated API/web URLs and JWT in `chrome.storage.local`, resolves the exact variant, fetches intelligence and creates alerts.
+- `popup.html/js/css`, `sidepanel.html` — show detected product, exact-variant comparison, price history, evidence/disclosures, cheapest-store handoff through the affiliate endpoint, and price-alert creation.
 
 The extension uses the same public APIs. It requires a reload of already-open tabs after installation so the content script is present.
 
@@ -80,11 +82,11 @@ Docker Compose runs one worker and one beat process. Without Redis, the API stil
 - Retailer adapters are demo-only until authorized feeds and credentials exist. `/api/integrations/status` states this explicitly.
 - AI uses deterministic fallback unless `AI_PROVIDER` and credentials are configured.
 - Email is console-level; notification providers report configuration, not delivery success.
-- Coupon wallet and extension preferences are local browser data, not server persistence.
+- Coupon wallet and extension preferences are local browser data. Shopping memory and Copilot conversations are server-persisted only for authenticated users.
 
 ## Deployment notes
 
-- Backend image runs `alembic upgrade head` then Uvicorn.
+- Backend image runs `alembic upgrade head` then Uvicorn; current head is `2f6a9c31b7d4`.
 - Frontend uses Next standalone output and proxies to `http://backend:8000`.
 - PostgreSQL data and Redis AOF are Docker volumes.
 - Use a random `SECRET_KEY`, strong database password and explicit `FRONTEND_ORIGINS` outside local demo use.

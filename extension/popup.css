@@ -24,6 +24,7 @@ body {
   color: var(--ink);
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+body.sidepanel { width: 100%; min-width: 320px; max-height: none; height: 100vh; }
 
 .topbar {
   position: sticky;
@@ -55,6 +56,7 @@ body {
 main { padding: 12px; }
 .hidden { display: none !important; }
 
+.top-actions { display: flex; gap: 4px; }
 .icon-button {
   border: 0;
   border-radius: 7px;
@@ -91,6 +93,10 @@ h3 { margin: 0 0 4px; font-size: 12px; }
 
 .product-name { margin: 8px 0 2px; font-size: 14px; font-weight: 650; }
 .meta { margin: 2px 0 9px; color: var(--muted); font-size: 11px; }
+.variant-line { margin: 4px 0 8px; color: var(--green); font-size: 10px; font-weight: 600; }
+.badge-row { display: flex; gap: 4px; }
+.meta-inline { color: var(--muted); font-size: 9px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.mini-section { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 
 .pill {
   border-radius: 999px;
@@ -158,6 +164,32 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   font-weight: 600;
 }
 .price-gap.negative { background: var(--amber-soft); color: var(--amber); }
+
+.score-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 8px 0; }
+.score-box { border: 1px solid var(--line); border-radius: 8px; padding: 7px; text-align: center; background: #f8fbf8; }
+.score-box strong { display: block; color: var(--green); font-size: 14px; text-transform: capitalize; }
+.score-box span { display: block; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+
+#history-chart { width: 100%; height: 76px; }
+.history-area { fill: #e8f5ec; }
+.history-line { fill: none; stroke: var(--green); stroke-width: 2; vector-effect: non-scaling-stroke; }
+
+.evidence-box { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.evidence-list { margin: 5px 0 0; padding-left: 15px; color: var(--muted); font-size: 10px; }
+.evidence-list li { margin: 3px 0; }
+
+.offer-list, .alternative-list { margin: 5px 0 0; padding: 0; list-style: none; }
+.offer-list li, .alternative-list li {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+  font-size: 10px;
+}
+.offer-list strong, .alternative-list a { font-size: 11px; color: var(--ink); font-weight: 650; }
+.offer-list span, .alternative-list span { color: var(--muted); }
+.alternative-list a { text-decoration: none; }
+.alternative-list a:hover { color: var(--green); text-decoration: underline; }
 
 .listing-list { margin: 6px 0; padding: 0; list-style: none; }
 .listing-list li {

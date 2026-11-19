@@ -15,15 +15,17 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError(null);
     try {
       const payload = await apiFetch<{ items: Notification[] }>("/api/notifications?limit=100", { token });
       setNotifications(payload.items);
     } catch (fetchError) {
-      setMessage(fetchError instanceof Error ? fetchError.message : "Could not load notifications");
+      setError(fetchError instanceof Error ? fetchError.message : "Could not load notifications");
     } finally {
       setLoading(false);
     }
@@ -35,18 +37,31 @@ export default function NotificationsPage() {
 
   async function markAll() {
     if (!token) return;
-    await apiFetch("/api/notifications/read-all", { method: "POST", token });
-    setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+    setError(null);
+    try {
+      await apiFetch("/api/notifications/read-all", { method: "POST", token });
+      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+      setMessage("All notifications marked read.");
+    } catch (markError) {
+      setError(markError instanceof Error ? markError.message : "Could not mark notifications read");
+    }
   }
 
   async function markRead(id: number) {
     if (!token) return;
-    await apiFetch(`/api/notifications/${id}/read`, { method: "PATCH", token });
-    setNotifications((current) => current.map((item) => (item.id === id ? { ...item, read: true } : item)));
+    setError(null);
+    try {
+      await apiFetch(`/api/notifications/${id}/read`, { method: "PATCH", token });
+      setNotifications((current) => current.map((item) => (item.id === id ? { ...item, read: true } : item)));
+    } catch (markError) {
+      setError(markError instanceof Error ? markError.message : "Could not mark notification read");
+    }
   }
 
   async function sendTest() {
     if (!token) return;
+    setError(null);
+    setMessage(null);
     try {
       const response = await apiFetch<{ results: { channel: string; status: string; detail: string }[]; note: string }>("/api/notifications/test?channel=in_app", {
         method: "POST",
@@ -55,7 +70,7 @@ export default function NotificationsPage() {
       setMessage(response.note);
       await load();
     } catch (testError) {
-      setMessage(testError instanceof Error ? testError.message : "Test notification failed");
+      setError(testError instanceof Error ? testError.message : "Test notification failed");
     }
   }
 
@@ -73,6 +88,7 @@ export default function NotificationsPage() {
       </div>
 
       {message && <p className="mt-4 rounded-lg border bg-card p-3 text-sm">{message}</p>}
+      {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
       <div className="mt-5 space-y-3">
         {loading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</p>}

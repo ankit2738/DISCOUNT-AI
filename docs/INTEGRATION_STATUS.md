@@ -1,6 +1,6 @@
 # Integration Status
 
-Last verified: 2026-11-18 (local macOS + Docker Desktop/Colima).
+Last verified: 2026-11-19 (local macOS + Docker Desktop/Colima).
 
 Legend:
 
@@ -27,15 +27,15 @@ No unauthorized scraping is performed. `/api/integrations/status` and `/api/admi
 | Integration | Status | Details |
 | --- | --- | --- |
 | Affiliate click redirect | Functional local | `/api/affiliate/click/{listing_id}` records click, cheapest flag, effective price and source page, then redirects. No affiliate network/postback is configured. |
-| AI Copilot | Fallback | Deterministic rule-based fallback works without keys. External provider only when `AI_PROVIDER` and `AI_API_KEY` are configured. No external AI is claimed live. |
+| AI Copilot | Fallback | Deterministic rule-based fallback works without keys; authenticated conversations persist and consenting shopping-memory context is included. External provider only when `AI_PROVIDER` and `AI_API_KEY` are configured. No external AI is claimed live. |
 | Telegram alerts | Not configured | Configuration status reported. No bot token in the checked environment. In-app alert records still work. |
 | WhatsApp alerts | Not configured | Requires token and phone-number ID. No messages are claimed delivered. |
 | Email | Console | `EMAIL_PROVIDER=console`; verification/reset responses do not claim external delivery. |
 | Payments | Sandbox | `PAYMENT_PROVIDER=sandbox`; marketplace orders/transactions are records. Raw card, CVV and UPI values are rejected. |
 | Redis/Celery | Functional local Docker | `worker` and `beat` containers start; alert and demo-refresh schedules are registered. No production broker/TLS setup. |
 | PostgreSQL | Functional local Docker | Alembic migration applied; health reports `postgresql+psycopg`. |
-| Chrome extension | Functional local/manual load | MV3 package in `extension/`; talks to configured API base. Not published to the Chrome Web Store. |
-| PWA | Functional local | Manifest, icons and service worker; offline shell only, `/api` never cached. |
+| Chrome extension | Functional local/manual load | MV3 package in `extension/` with Amazon/Flipkart/generic parser, exact-variant resolve/intelligence calls and parser/API Playwright coverage. Not published to the Chrome Web Store. |
+| PWA | Functional local | Manifest, PNG icons, service worker and `/offline`; private routes and `/api` are never cached. |
 
 ## Admin integration view
 

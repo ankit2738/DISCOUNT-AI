@@ -7,7 +7,10 @@ import {
   BarChart3,
   BadgePercent,
   CalendarDays,
+  IndianRupee,
   LayoutDashboard,
+  PlugZap,
+  ScrollText,
   ShieldCheck,
   Store,
   Users,
@@ -22,12 +25,18 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/catalog", label: "Catalogue & prices", icon: Boxes },
+  { href: "/admin/products", label: "Products", icon: Boxes },
+  { href: "/admin/retailers", label: "Retailers", icon: Store },
+  { href: "/admin/prices", label: "Price records", icon: IndianRupee },
+  { href: "/admin/catalog", label: "Catalogue tools", icon: Boxes },
   { href: "/admin/offers", label: "Coupons & bank offers", icon: BadgePercent },
   { href: "/admin/community", label: "Community moderation", icon: ShieldCheck },
   { href: "/admin/marketplace", label: "Marketplace", icon: Store },
   { href: "/admin/campaigns", label: "Sale campaigns", icon: CalendarDays },
-  { href: "/admin/system", label: "System & analytics", icon: BarChart3 },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/admin/integrations", label: "Integrations", icon: PlugZap },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/system", label: "System status", icon: Activity },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -58,7 +67,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
         <aside>
-          <Card className="sticky top-24">
+          <Card className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <CardContent className="space-y-1 p-3">
               <p className="flex items-center gap-2 px-2 py-2 text-sm font-semibold"><Activity className="h-4 w-4 text-primary" /> Admin console</p>
               {LINKS.map((link) => {

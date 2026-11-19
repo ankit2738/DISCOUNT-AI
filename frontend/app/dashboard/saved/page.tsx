@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Heart, Loader2, Trash2 } from "lucide-react";
+import { BellRing, Heart, Loader2, Scale, Trash2 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ export default function SavedPage() {
   const [listType, setListType] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -49,8 +50,36 @@ export default function SavedPage() {
     try {
       await apiFetch(`/api/watchlist/${id}`, { method: "DELETE", token });
       setItems((current) => current.filter((item) => item.id !== id));
+      setNotice("Removed from your saved products.");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not remove item");
+    }
+  }
+
+  async function createAlert(item: WatchlistItem) {
+    if (!token) return;
+    const base = item.lowest_effective_price ?? item.lowest_price;
+    if (!base) {
+      setError("No current price is available to set a target.");
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    const target = Math.max(1, Math.round((base * 0.97) / 10) * 10);
+    try {
+      await apiFetch("/api/alerts", {
+        method: "POST",
+        token,
+        body: {
+          product_id: item.product.id,
+          variant_id: item.product.variants[0]?.id ?? null,
+          target_price: target,
+          channel: "in_app",
+        },
+      });
+      setNotice(`Price alert created for ${item.product.name} at ${formatINR(target)}.`);
+    } catch (alertError) {
+      setError(alertError instanceof Error ? alertError.message : "Could not create price alert");
     }
   }
 
@@ -75,6 +104,7 @@ export default function SavedPage() {
         </div>
       </div>
 
+      {notice && <p className="mt-4 rounded-lg border bg-card p-3 text-sm">{notice}</p>}
       {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
       <div className="mt-5 space-y-3">
@@ -97,11 +127,21 @@ export default function SavedPage() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="font-bold text-primary">{formatINR(item.lowest_effective_price)}</p>
-                  <p className="text-[11px] text-muted-foreground">best effective price</p>
+                <p className="text-[11px] text-muted-foreground">best effective price</p>
+              </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/compare?product=${item.product.id}${item.product.variants[0] ? `&variant=${item.product.variants[0].id}` : ""}`}>
+                      <Scale className="mr-1 h-4 w-4" /> Compare
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void createAlert(item)}>
+                    <BellRing className="mr-1 h-4 w-4" /> Alert
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => void remove(item.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => void remove(item.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
             </CardContent>
           </Card>

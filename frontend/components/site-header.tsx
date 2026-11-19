@@ -116,7 +116,17 @@ export function SiteHeader() {
             <summary className="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-md hover:bg-muted">
               <Menu className="h-4 w-4" />
             </summary>
-            <div className="absolute right-0 mt-2 w-56 rounded-lg border bg-card p-2 shadow-lg">
+            <div className="absolute right-0 mt-2 w-64 rounded-lg border bg-card p-2 shadow-lg">
+              <form onSubmit={submitSearch} className="mb-2 flex gap-2 p-1">
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search products..."
+                  aria-label="Search products on mobile"
+                  className="h-9"
+                />
+                <Button type="submit" size="sm" variant="outline">Go</Button>
+              </form>
               {NAV.map((item) => (
                 <Link
                   key={item.href}

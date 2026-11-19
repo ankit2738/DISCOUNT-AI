@@ -1,16 +1,16 @@
 # Test Report
 
-Last verified: 2026-11-18 (Asia/Kolkata local machine, macOS, Apple silicon).
+Last verified: 2026-11-19 (Asia/Kolkata local machine, macOS, Apple silicon).
 
 ## Summary
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Backend API/unit | `cd backend && ../.venv/bin/python -m pytest -q` | **67 passed**, 1 warning, ~1.4s |
+| Backend API/unit | `cd backend && ../.venv/bin/python -m pytest -q` | **81 passed**, 1 warning, ~1.6s |
 | Frontend typecheck | `cd frontend && npm run typecheck` | **Passed** |
 | Frontend unit | `cd frontend && npm test` | **16 passed** in 4 files |
-| Frontend production build | `cd frontend && npm run build` | **Passed**, 36 routes |
-| Browser smoke | `cd frontend && npm run test:e2e` | **5 passed** Chromium |
+| Frontend production build | `cd frontend && npm run build` | **Passed**, 44 routes |
+| Browser smoke | `cd frontend && npm run test:e2e` | **12 passed** Chromium |
 | Docker build | `docker compose build` | Backend, worker, beat, frontend built |
 | Docker runtime | `docker compose up -d` | db/redis/backend healthy; worker/beat/frontend up |
 
@@ -30,6 +30,10 @@ Coverage areas exercised by the suite:
 - Campaigns, analytics, affiliate click redirect.
 - Admin users/catalogue/offers/integrations/audit.
 - New public contracts: slug detail, deals ordering, contact message, affiliate redirect, comparison slug.
+- Shopping memory consent/clear/context, persisted AI conversations, conversation privacy and deletion with account removal.
+- Warranty ownership, seller-role approval, extension exact-variant matching and unrelated-page rejection.
+- Marketplace fee split, order idempotency, duplicate-dispute rejection, seller earnings and refund state.
+- Cart delivery/pre-offer totals and coupon non-duplication.
 
 Observed warning:
 
@@ -52,7 +56,7 @@ Result: **4 files, 16 tests passed**. Test cleanup is registered in `vitest.setu
 
 ## Playwright
 
-Command: `npm run test:e2e`. Playwright starts its own backend on port 8000 and Next dev server on port 3000. Backend uses `/tmp/discount-ai-e2e.db`, seeded with demo data.
+Command: `npm run test:e2e`. Playwright starts its own backend on port 8100 and Next dev server on port 3100 by default; these differ from the Docker stack ports. Backend uses `/tmp/discount-ai-e2e.db`, seeded with demo data. The config accepts `E2E_BACKEND_PORT`/`E2E_FRONTEND_PORT` overrides and always starts fresh test servers.
 
 Passing scenarios:
 
@@ -61,8 +65,14 @@ Passing scenarios:
 3. Demo shopper login → dashboard and alerts navigation.
 4. Anonymous admin blocked; seeded admin login → `/admin`.
 5. `/compare?product=<id>` renders saving/retailer data.
+6. Shopping-memory add/delete flow.
+7. Seller workspace and marketplace safety.
+8. Dedicated admin product/analytics/audit routes.
+9. Offline fallback route.
+10. Amazon and Flipkart parser fixtures.
+11. Extension resolve/intelligence API path (exact variant, price history, comparison).
 
-Result: **5 passed**. Chromium `159.0.8154.6` installed via `npx playwright install chromium`.
+Result: **12 passed**. Chromium `159.0.8154.6` installed via `npx playwright install chromium`.
 
 ## Docker verification
 
@@ -80,6 +90,7 @@ Verified:
 - `/api/health` → status ok; PostgreSQL connected; counts: 12 products, 34 listings, 6 retailers.
 - Frontend `/` → HTTP 200.
 - Frontend `/api/products/search?q=iphone` proxy → total ≥ 1.
+- Frontend `/dashboard/memory`, `/offline` and `/api/extension/resolve` → HTTP 200 after rebuild.
 - Demo login through proxy → JWT issued.
 - Comparison through proxy → iPhone 15 128GB, 3 listings.
 - Affiliate click through proxy → HTTP 307 to labelled demo URL.
@@ -90,7 +101,7 @@ Verified:
 
 ## Build/runtime notes
 
-- Next.js production build generated 36 routes; `/products/[slug]`, `/sale-events/[slug]` and `/admin/[section]` are dynamic; others static.
+- Next.js production build generated 44 routes; `/products/[slug]`, `/sale-events/[slug]` and `/admin/[section]` are dynamic; others static.
 - Next.js rewrites `/api/:path*` to `BACKEND_URL`; Docker uses `http://backend:8000`.
 - `allowedDevOrigins` includes localhost/127.0.0.1 for Playwright dev-server stability.
 - Docker health checks use Python stdlib for the backend and `pg_isready`/`redis-cli` for dependencies.
@@ -100,6 +111,6 @@ Verified:
 
 - No live Amazon/Flipkart/Meesho/Myntra/Croma/Reliance API or scraping.
 - No real AI provider call, email delivery, Telegram/WhatsApp delivery or payment capture.
-- Chrome extension was syntax-checked and structurally verified, but not loaded through an automated browser extension test or Chrome Web Store review.
+- Chrome extension parser/API paths are covered by Playwright; the full MV3 package was not loaded by an extension-aware browser harness or reviewed by the Chrome Web Store.
 - No load/performance, penetration, accessibility audit or production observability testing.
 - Mobile Safari/Firefox were not part of the Playwright smoke run.

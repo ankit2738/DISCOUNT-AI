@@ -15,7 +15,13 @@ export const metadata: Metadata = {
   description:
     "Independent shopping intelligence for Indian online shoppers: verified price comparison, deal scores, fake discount detection, coupons, bank offers and an AI shopping copilot.",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icon-192.png",
+  },
   applicationName: "DISCOUNT AI",
 };
 

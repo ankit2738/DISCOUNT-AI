@@ -64,3 +64,34 @@ def test_cart_optimizer_with_bank_offer(client: TestClient, demo_headers, iphone
     payload = response.json()
     assert payload["optimized_total"] < payload["original_total"] or payload["savings"] >= 0
     assert payload["methodology"]
+
+
+def test_cart_optimizer_does_not_double_apply_coupon(client: TestClient, demo_headers, iphone_listing_id: int) -> None:
+    response = client.post(
+        "/api/cart/optimize",
+        headers=demo_headers,
+        json={"items": [{"listing_id": iphone_listing_id, "quantity": 2}]},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    for store in payload["stores"]:
+        line_pre_offer = sum(line["line_pre_offer_total"] for line in store["items"])
+        assert abs(line_pre_offer - store["pre_offer_subtotal"]) < 0.01
+        expected = max(0, store["pre_offer_subtotal"] - store["coupon_discount"] - store["bank_discount"])
+        assert abs(expected - store["store_payable"]) < 0.01
+        for line in store["items"]:
+            assert line["line_pre_offer_total"] == line["line_merchandise_total"] + line["line_delivery_total"]
+
+
+def test_cart_payload_exposes_delivery_and_pre_offer_totals(client: TestClient, demo_headers, iphone_listing_id: int) -> None:
+    client.delete("/api/cart/clear", headers=demo_headers)
+    added = client.post(
+        "/api/cart/items",
+        headers=demo_headers,
+        json={"listing_id": iphone_listing_id, "quantity": 1},
+    )
+    payload = added.json()
+    assert "delivery_total" in payload
+    assert "pre_offer_total" in payload
+    assert abs(payload["pre_offer_total"] - (payload["subtotal"] + payload["delivery_total"])) < 0.01
+    assert abs(payload["items"][0]["line_total"] - (payload["subtotal"])) < 0.01

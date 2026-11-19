@@ -15,7 +15,10 @@
           <small>Buy Smarter. Not Just Cheaper.</small>
         </div>
       </div>
-      <button id="settings-toggle" class="icon-button" type="button" title="Settings">⚙</button>
+      <div class="top-actions">
+        <button id="open-side-panel" class="icon-button" type="button" title="Open side panel">▥</button>
+        <button id="settings-toggle" class="icon-button" type="button" title="Settings">⚙</button>
+      </div>
     </header>
 
     <main>
@@ -29,11 +32,11 @@
         <label>API base URL<input id="api-base" type="url" placeholder="http://127.0.0.1:8000" /></label>
         <label>Web app URL<input id="web-base" type="url" placeholder="http://localhost:3000" /></label>
         <button id="save-config" class="secondary" type="button">Save connection</button>
-        <h2>Sign in for alerts</h2>
+        <h2>Sign in for alerts and saved context</h2>
         <label>Email<input id="login-email" type="email" autocomplete="username" placeholder="demo@discountai.in" /></label>
         <label>Password<input id="login-password" type="password" autocomplete="current-password" /></label>
         <button id="login-button" type="button">Log in</button>
-        <p class="fineprint">Demo account: demo@discountai.in / DemoPass123!. The token is stored in this browser profile only. Use a demo account or your own account.</p>
+        <p class="fineprint">Demo account: demo@discountai.in / DemoPass123!. The session token is stored in this browser profile only.</p>
       </section>
 
       <section class="card">
@@ -43,10 +46,11 @@
         </div>
         <p id="detected-name" class="product-name">Reading the active tab…</p>
         <p id="detected-meta" class="meta"></p>
-        <label class="query-label">Search query
-          <input id="query" type="text" placeholder="Product name or model" />
+        <p id="detected-variant" class="variant-line"></p>
+        <label class="query-label">Product / model search
+          <input id="query" type="text" placeholder="Brand, model and variant" />
         </label>
-        <button id="compare-button" type="button">Compare exact-variant prices</button>
+        <button id="compare-button" type="button">Analyse exact variant</button>
       </section>
 
       <section id="status" class="status hidden"></section>
@@ -54,19 +58,88 @@
       <section id="result" class="card hidden">
         <div class="section-head">
           <h2>Price intelligence</h2>
-          <span id="result-demo" class="pill warning hidden">Demo data</span>
+          <div class="badge-row">
+            <span id="result-demo" class="pill warning hidden">Demo data</span>
+            <span id="match-confidence" class="pill"></span>
+          </div>
         </div>
         <p id="result-name" class="product-name"></p>
         <p id="result-summary" class="meta"></p>
+        <p id="result-variant" class="variant-line"></p>
         <div id="price-gap" class="price-gap hidden"></div>
-        <ol id="listing-list" class="listing-list"></ol>
-        <div class="actions">
-          <a id="open-product" class="button secondary" target="_blank" rel="noopener">Open full analysis</a>
-          <a id="open-cheapest" class="button" target="_blank" rel="noopener noreferrer nofollow sponsored">Go to cheapest store</a>
+
+        <div class="score-row">
+          <div class="score-box">
+            <strong id="deal-score">—</strong>
+            <span>Deal score</span>
+          </div>
+          <div class="score-box">
+            <strong id="deal-grade">—</strong>
+            <span id="deal-confidence">Evidence confidence</span>
+          </div>
+          <div class="score-box">
+            <strong id="advice-label">—</strong>
+            <span id="advice-confidence">Buy / wait</span>
+          </div>
         </div>
+
+        <div class="mini-section">
+          <div class="section-head">
+            <h3>Price history</h3>
+            <span id="history-range" class="meta-inline"></span>
+          </div>
+          <svg id="history-chart" viewBox="0 0 360 76" role="img" aria-label="Tracked price history"></svg>
+          <p id="history-note" class="fineprint"></p>
+        </div>
+
+        <div class="mini-section">
+          <h3>Why this score</h3>
+          <ul id="deal-evidence" class="evidence-list"></ul>
+          <p id="deal-summary" class="fineprint"></p>
+        </div>
+
+        <div id="fake-box" class="evidence-box">
+          <div class="section-head">
+            <h3>Discount risk check</h3>
+            <span id="fake-risk" class="pill"></span>
+          </div>
+          <p id="fake-summary" class="fineprint"></p>
+        </div>
+
+        <div id="advice-box" class="evidence-box">
+          <div class="section-head">
+            <h3>Buy or wait</h3>
+            <span id="advice-pill" class="pill"></span>
+          </div>
+          <ul id="advice-reasons" class="evidence-list"></ul>
+        </div>
+
+        <div class="mini-section">
+          <h3>Exact-variant retailers</h3>
+          <ol id="listing-list" class="listing-list"></ol>
+        </div>
+
+        <div class="mini-section">
+          <h3>Coupons and bank offers</h3>
+          <ul id="offer-list" class="offer-list"></ul>
+        </div>
+
+        <div class="mini-section">
+          <div class="section-head">
+            <h3>Alternatives</h3>
+            <span class="meta-inline">Never ranked by commission</span>
+          </div>
+          <ul id="alternative-list" class="alternative-list"></ul>
+        </div>
+
+        <div class="actions">
+          <a id="open-product" class="button secondary" target="_blank" rel="noopener">Full analysis</a>
+          <a id="open-cheapest" class="button" target="_blank" rel="noopener noreferrer nofollow sponsored">Cheapest store</a>
+        </div>
+
         <div class="alert-box">
           <h3>Create a price alert</h3>
-          <p class="fineprint">We store the alert on your DISCOUNT AI account. Delivery remains in-app unless you configure another channel in the web app.</p>
+          <p class="fineprint">Alerts are stored on your DISCOUNT AI account. Delivery remains in-app unless another channel is configured in the web app.</p>
           <label>Target price (₹)<input id="target-price" type="number" min="1" step="1" /></label>
           <button id="alert-button" class="secondary" type="button">Create alert</button>
         </div>
@@ -74,13 +147,13 @@
       </section>
 
       <section class="note">
-        <strong>Honest data:</strong> seeded retailer prices are labelled demo data. Verify final price, coupon eligibility and seller before purchase. Commission never affects ranking.
+        <strong>Exact variant only.</strong> Seeded retailer prices are demo data. Verify final price, coupon eligibility and seller before purchase. Commission never affects ranking.
       </section>
     </main>
 
     <footer>
       <a id="open-web" href="http://localhost:3000" target="_blank" rel="noopener">Open DISCOUNT AI</a>
-      <span>Extension v0.1.0</span>
+      <span>Extension v0.2.0</span>
     </footer>
 
     <script src="popup.js"></script>

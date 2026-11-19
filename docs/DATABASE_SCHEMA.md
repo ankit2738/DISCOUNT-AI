@@ -1,6 +1,6 @@
 # Database Schema
 
-Current Alembic revision: `8d4ca53678ff` (`backend/alembic/versions/8d4ca53678ff_initial_schema.py`).
+Current Alembic revision: `2f6a9c31b7d4` (`backend/alembic/versions/2f6a9c31b7d4_memory_warranty_marketplace.py`), building on initial revision `8d4ca53678ff`.
 
 PostgreSQL is used in Docker/production; SQLite is supported for local tests. All monetary columns use SQLAlchemy `Numeric`/`Decimal` handling. Seeded rows carry `is_demo=true` where the table supports it.
 
@@ -8,7 +8,7 @@ PostgreSQL is used in Docker/production; SQLite is supported for local tests. Al
 
 | Table | Key fields | Relationships / notes |
 | --- | --- | --- |
-| `users` | `id`, `email` unique, `password_hash`, `full_name`, `phone`, `role`, `is_active`, `is_verified`, `verification_token`, `reset_token`, `reset_expires_at`, `last_login_at`, `deleted_at` | Roles: `shopper`, `seller`, `admin`. scrypt hashes. |
+| `users` | `id`, `email` unique, `password_hash`, `full_name`, `phone`, `role`, `is_active`, `is_verified`, `verification_token`, `reset_token`, `reset_expires_at`, `last_login_at`, `deleted_at` | Roles: `user`, `seller`, `admin`. scrypt hashes. |
 | `user_profiles` | `id`, `user_id`, `city`, `state`, `pincode`, `avatar_url`, `date_of_birth`, `shopping_persona` | One profile per user. |
 | `preferences` | `id`, `user_id`, `preferred_brands/categories/retailers`, budgets, notification and consent flags, Telegram/WhatsApp IDs | Personalisation and consent. |
 | `admin_users` | `id`, `user_id`, `permissions`, `is_superadmin` | Optional granular admin metadata. |
@@ -25,7 +25,7 @@ PostgreSQL is used in Docker/production; SQLite is supported for local tests. Al
 | `price_history` | `id`, `listing_id`, `price`, `mrp`, `recorded_at`, `is_demo`, `source` | Daily/period snapshots. |
 | `price_sources` | `id`, `listing_id`, `source_type`, `source_url`, `observed_at`, `is_demo`, `notes` | Provenance for price observations. |
 | `product_specifications` | `id`, `product_id`, `variant_id`, `spec_group`, `name`, `value`, `source`, `verified_at`, `is_demo` | Structured specs. |
-| `warranty_records` | `id`, `purchase_id`, `product_id`, `variant_id`, `retailer_id`, `warranty_months`, `provider`, `coverage`, `source_url`, `verified_at`, `is_demo` | Warranty evidence. |
+| `warranty_records` | `id`, `user_id`, `purchase_id`, `product_id`, `variant_id`, `retailer_id`, `warranty_months`, `provider`, `coverage`, `source_url`, `verified_at`, `is_demo` | Warranty evidence. Owner-scoped; `user_id IS NULL` records are the public demo comparison set. |
 | `return_policies` | `id`, `retailer_id`, `category`, `return_days`, `replacement_allowed`, `refund_policy`, `conditions`, `source_url`, `verified_at`, `is_demo` | Retailer/category policies. |
 
 ## Offers and intelligence
@@ -51,6 +51,14 @@ PostgreSQL is used in Docker/production; SQLite is supported for local tests. Al
 | `purchases` | `id`, `user_id`, `listing_id`, `product_id`, `retailer_id`, `price`, `quantity`, `purchased_at` | Price tracking/optimisation input. |
 | `recurring_purchases` | `id`, `user_id`, `product_id`, `label`, `interval_days`, `last_purchased_at`, `last_price`, `next_reminder_at`, `active` | Reminder metadata. |
 
+## Shopping memory and AI persistence
+
+| Table | Key fields | Relationships / notes |
+| --- | --- | --- |
+| `shopping_memory` | `id`, `user_id`, `memory_type`, `memory_key`, `memory_value`, `context` JSON, `source`, `consent`, `expires_at`, timestamps | One row per user/type/key. Only `consent=true` rows feed Copilot context. |
+| `ai_conversations` | `id`, `user_id`, `session_id` unique, `title`, `context` JSON, timestamps | Authenticated Copilot conversation. |
+| `ai_messages` | `id`, `conversation_id`, `role`, `content`, `meta` JSON, `created_at` | Ordered user/assistant messages; no provider secrets stored. |
+
 ## Community
 
 | Table | Key fields | Relationships / notes |
@@ -64,7 +72,7 @@ PostgreSQL is used in Docker/production; SQLite is supported for local tests. Al
 | --- | --- | --- |
 | `marketplace_sellers` | `id`, `user_id`, `display_name`, `bio`, `status`, `rating`, `total_sales` | Seller application/moderation. |
 | `marketplace_listings` | `id`, `seller_id`, `title`, `description`, `category`, `price`, `proof_url`, `expires_at`, `status`, `is_transfer_allowed` | Coupons/vouchers only; moderated. |
-| `marketplace_orders` | `id`, `listing_id`, `buyer_id`, `seller_id`, `amount`, `status`, `payment_provider`, `delivery_details` JSON | Sandbox payment records only. |
+| `marketplace_orders` | `id`, `listing_id`, `buyer_id`, `seller_id`, `amount`, `platform_fee`, `seller_payout`, `idempotency_key` unique, `status`, `payment_provider`, `delivery_details` JSON, `refunded_at`, timestamps | Sandbox payment records only; 5% demo fee split and optional idempotent creation. |
 | `transactions` | `id`, `order_id`, `provider`, `provider_reference`, `amount`, `currency`, `status`, `type`, `meta` | Provider `sandbox`; no card data. |
 | `disputes` | `id`, `order_id`, `opened_by`, `reason`, `evidence_url`, `status`, `resolution`, `resolved_at` | Admin resolution. |
 

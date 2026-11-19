@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last verified: 2026-11-18.
+Last verified: 2026-11-19.
 
 Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker stack, tests and documentation are implemented. External retailer/AI/notification/payment integrations are intentionally **not live**; all seeded data is labelled demo data.
 
@@ -15,9 +15,9 @@ Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker st
 | 5 | Exact-variant comparison and decimal pricing | Complete |
 | 6 | Price history, deal score, fake-discount and buy/wait intelligence | Complete |
 | 7 | Coupons, bank offers and price calculator | Complete |
-| 8 | Smart cart, watchlist, purchases and recurring reminders | Complete |
+| 8 | Smart cart, watchlist, purchases, recurring reminders and shopping memory | Complete |
 | 9 | Price alerts, notifications and provider status | Complete |
-| 10 | AI Copilot with deterministic fallback | Complete |
+| 10 | AI Copilot with deterministic fallback and persisted conversations | Complete |
 | 11 | Community evidence, moderation and leaderboard | Complete |
 | 12 | Sandbox coupon marketplace and disputes | Complete |
 | 13 | Sale campaigns, affiliate attribution and admin operations | Complete |
@@ -27,13 +27,15 @@ Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker st
 
 ## Backend
 
-- 37 application tables plus `alembic_version`; initial migration verified on PostgreSQL.
+- 40 application tables plus `alembic_version`; current migration `2f6a9c31b7d4` applied to PostgreSQL Docker data.
 - JWT auth, scrypt hashing, role guards, rate limiting, CORS for web and extension origins.
 - Public catalogue, search, slug/ID detail, deals, comparison, price history, deal score, fake-discount, buy/wait and warranty comparison.
-- Cart, watchlist, purchases, alerts, notifications, preferences, privacy export and account deletion.
-- AI chat/recommendations/providers; fallback works without external credentials.
-- Contacts, community reports/votes/leaderboard, campaigns, affiliate click recording.
-- Sandbox marketplace sellers/listings/orders/disputes; payment details rejected.
+- Cart, watchlist, purchases, owner-scoped warranty, alerts, notifications, preferences, privacy export and account deletion.
+- Shopping memory CRUD with explicit consent/clear confirmation, consent-filtered Copilot context and recurring-purchase reminders.
+- AI chat/recommendations/providers plus authenticated conversation list/detail/delete; fallback works without external credentials.
+- Contacts, community reports/votes/leaderboard, campaigns, affiliate click recording and private pending reports.
+- Sandbox marketplace sellers/listings/orders/disputes with 5% demo fee split, idempotent orders and duplicate-dispute rejection; payment details rejected.
+- Browser-extension exact-variant resolver and intelligence endpoint.
 - Admin APIs for users, products, variants, retailers, listings/prices, coupons, bank offers, community, marketplace, campaigns, audit, affiliate and integrations.
 - Celery worker/beat tasks for alerts and demo price refresh.
 
@@ -41,33 +43,35 @@ Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker st
 
 Public routes:
 
-`/`, `/search`, `/deals`, `/coupons`, `/bank-offers`, `/sale-events`, `/sale-events/[slug]`, `/products/[slug]`, `/compare`, `/login`, `/register`, `/contact`, `/about`, `/how-it-works`, `/privacy`, `/terms`, `/affiliate-disclosure`.
+`/`, `/search`, `/deals`, `/coupons`, `/bank-offers`, `/sale-events`, `/sale-events/[slug]`, `/products/[slug]`, `/compare`, `/login`, `/register`, `/contact`, `/about`, `/how-it-works`, `/privacy`, `/terms`, `/affiliate-disclosure`, `/offline`.
 
 Dashboard routes:
 
-`/dashboard`, `/saved`, `/alerts`, `/assistant`, `/cart`, `/coupons`, `/purchases`, `/notifications`, `/preferences`, `/community`, `/marketplace`.
+`/dashboard`, `/saved`, `/alerts`, `/assistant`, `/memory`, `/cart`, `/coupons`, `/purchases`, `/notifications`, `/preferences`, `/community`, `/marketplace`.
 
 Admin routes:
 
-`/admin`, `/users`, `/catalog`, `/offers`, `/community`, `/marketplace`, `/campaigns`, `/system`.
+`/admin`, `/users`, `/catalog`, `/offers`, `/community`, `/marketplace`, `/campaigns`, `/system`, plus dedicated `/products`, `/retailers`, `/prices`, `/analytics`, `/integrations` and `/audit` pages.
 
-Consolidated aliases redirect `/admin/products`, `/variants`, `/retailers`, `/prices`, `/coupons`, `/bank-offers`, `/reports`, `/analytics`, `/ai`, `/affiliate`, `/api-health` and `/audit` to the canonical pages.
+Remaining unknown admin sections use the `/admin/[section]` alias route.
 
 Notable behaviour:
 
 - Variant-aware product comparison, evidence panels and demo badges.
 - Retailer outbound links route through the affiliate click endpoint with source/session attribution.
-- Coupon wallet is explicitly localStorage-only.
+- Coupon wallet is explicitly localStorage-only and synchronises across tabs.
 - Admin catalogue/offers/campaigns support create/update flows; moderation actions require notes where an audit trail matters.
-- PWA service worker caches shell assets only and skips `/api`.
+- Shopping memory is opt-in, editable/deletable, and only consenting entries reach the Copilot.
+- Marketplace UI separates buyer orders, seller workspace, sandbox fee/payout and dispute controls.
+- PWA service worker caches shell assets only, bypasses `/api` and private dashboard/admin routes, and provides `/offline`.
 
 ## Extension
 
-- Manifest V3 package at `extension/`.
-- Detects JSON-LD Product/Offer, Open Graph/product metadata and a conservative visual fallback.
-- Stores API URL, web URL and JWT in `chrome.storage.local`.
-- Compares exact variants through the public API, links the cheapest store through the affiliate endpoint and creates account price alerts.
-- Requires “Load unpacked” and a page reload after installation. Not published to the Chrome Web Store.
+- Manifest V3 package at `extension/` with popup and side panel.
+- Amazon/Flipkart/generic parser extracts external ID, title, price and selected variant hint.
+- Validates API/web URLs, stores JWT in `chrome.storage.local`, and calls `/api/extension/resolve` plus `/api/extension/intelligence`.
+- Shows exact-variant comparison, price history, deal/fake-discount/buy-wait evidence and disclosures; links the cheapest store through the affiliate endpoint and creates account price alerts.
+- Parser fixtures and the resolve/intelligence path are covered by Playwright. Requires “Load unpacked” and a page reload after installation. Not published to the Chrome Web Store.
 
 ## Infrastructure
 
@@ -81,18 +85,38 @@ Notable behaviour:
 
 | Check | Result |
 | --- | --- |
-| Backend Pytest | 67 passed |
+| Backend Pytest | 81 passed |
 | Frontend Vitest | 16 passed |
-| Playwright Chromium smoke | 5 passed |
+| Playwright Chromium smoke | 12 passed |
 | Frontend typecheck | Passed |
-| Next production build | Passed, 36 routes |
-| Docker images | Backend, worker, beat, frontend built |
+| Next production build | Passed, 44 routes |
+| Docker images | Backend, worker, beat, frontend rebuilt and started |
 | Docker services | db/redis/backend healthy; worker/beat/frontend up |
 | `/health` | Exact contract verified |
 | `/api/health` | PostgreSQL connected; actual counts returned |
-| `/api` proxy through frontend | Verified |
+| `/api` proxy through frontend | Verified, including `/api/extension/resolve` |
+| New routes | `/dashboard/memory`, `/offline` and dedicated admin pages HTTP 200 |
 
 See `docs/TEST_REPORT.md` for commands and caveats.
+
+## Acceptance matrix
+
+Grades: **A** complete and verified locally, **B** complete with explicit demo/sandbox/manual boundaries, **C** partial, **D** unavailable without external credentials/onboarding.
+
+| Area | Grade | Evidence |
+| --- | --- | --- |
+| Auth, roles, account deletion and privacy | A | Pytest, role-guard UI, Docker runtime |
+| Catalogue, exact-variant matching and comparison | A | Pytest, Playwright, seeded catalogue |
+| Pricing, coupons, bank offers and smart cart | A | Decimal pricing, non-duplication tests, Playwright |
+| Alerts, notifications and recurring reminders | A | Pytest; external delivery honestly reports not configured |
+| Shopping memory and persisted AI Copilot | A | Consent/ownership tests, Playwright memory flow, fallback provider |
+| Community evidence and moderation | A | Pending-report privacy/vote tests, admin moderation |
+| Sandbox marketplace and disputes | B | Fee/idempotency/dispute tests; sandbox payment records only |
+| Admin operations | A | Dedicated routes, API tests, audit trail |
+| Chrome MV3 extension | B | Parser/resolve/intelligence Playwright tests; manual unpacked load, not store-published |
+| PWA and offline shell | B | Manifest/icons/service worker/offline route; no offline live-price claims |
+| Live retailer/affiliate feeds | D | No authorized credentials; labelled demo adapters only |
+| Live AI/email/Telegram/WhatsApp/payments | D | Honest configuration status; sandbox/fallback only |
 
 ## Known gaps and boundaries
 

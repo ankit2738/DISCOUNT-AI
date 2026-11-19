@@ -383,9 +383,12 @@ export type CartPayload = {
     listing: Listing;
     effective: EffectivePrice;
     line_total: number;
+    line_delivery?: number;
   }[];
   item_count: number;
   subtotal: number;
+  delivery_total?: number;
+  pre_offer_total?: number;
   is_demo_pricing: boolean;
 };
 
@@ -399,8 +402,12 @@ export type OptimizeResponse = {
     recommended_listing_id: number;
     recommended_listing: Listing;
     unit_effective_price: number;
-    line_effective_total: number;
-    coupon: Coupon | null;
+    line_effective_total?: number;
+    line_merchandise_total?: number;
+    line_delivery_total?: number;
+    line_pre_offer_total?: number;
+    coupon?: Coupon | null;
+    coupon_already_applied?: boolean;
     switched: boolean;
   }[];
   stores: {
@@ -441,6 +448,115 @@ export type ChatResponse = {
   limitations: string[];
   detected_budget: number | null;
   detected_category: string | null;
+  session_id?: string;
+  conversation_id?: number | null;
+  personal_context?: Record<string, unknown>;
+  persistence_note?: string;
+};
+
+export type ShoppingMemory = {
+  id: number;
+  memory_type: "preference" | "budget" | "category" | "brand" | "note" | "shopping_goal";
+  memory_key: string;
+  memory_value: string;
+  context: Record<string, unknown>;
+  source: string;
+  consent: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MemoryContext = {
+  memories: ShoppingMemory[];
+  counts: {
+    memory_entries: number;
+    saved_products: number;
+    active_alerts: number;
+    purchases: number;
+    recurring_purchases: number;
+  };
+  spend_tracked: number;
+  consent_note: string;
+};
+
+export type RecurringPurchase = {
+  id: number;
+  product: Product | null;
+  label: string;
+  interval_days: number;
+  last_purchased_at: string;
+  last_price: number;
+  current_lowest_price: number;
+  savings_if_rebought: number;
+  next_reminder_at: string | null;
+  active: boolean;
+};
+
+export type AIConversation = {
+  id: number;
+  session_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIMessage = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+};
+
+export type MarketplaceOrder = {
+  id: number;
+  listing_id: number;
+  listing_title: string | null;
+  buyer_id: number;
+  seller_id: number;
+  amount: number;
+  platform_fee?: number;
+  seller_payout?: number;
+  status: string;
+  payment_provider: string;
+  role?: "buyer" | "seller";
+  refunded_at?: string | null;
+  created_at: string;
+};
+
+export type MarketplaceSeller = {
+  id: number;
+  user_id: number;
+  display_name: string;
+  bio: string;
+  status: string;
+  rating: number | null;
+  total_sales: number;
+  created_at?: string;
+};
+
+export type SellerWorkspace = {
+  seller: MarketplaceSeller;
+  listings: MarketplaceListing[];
+  orders: MarketplaceOrder[];
+  gross_sales_sandbox: number;
+  platform_fees_sandbox: number;
+  earnings_sandbox: number;
+  refunded_orders: number;
+  note: string;
+};
+
+export type MarketplaceDispute = {
+  id: number;
+  order_id: number;
+  opened_by: number;
+  reason: string;
+  evidence_url: string | null;
+  status: string;
+  resolution: string | null;
+  created_at: string;
+  resolved_at: string | null;
 };
 
 export type AdminOverview = {

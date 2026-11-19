@@ -79,3 +79,78 @@ def test_seller_application_requires_admin_approval(client: TestClient, demo_hea
     assert response.status_code in {201, 409}
     if response.status_code == 201:
         assert response.json()["status"] == "pending"
+
+
+
+def _approved_listing(client: TestClient, seller_headers, admin_headers, title: str) -> int:
+    created = client.post(
+        "/api/marketplace/listings",
+        headers=seller_headers,
+        json={
+            "title": title,
+            "description": "Test listing for independent sandbox workflow checks.",
+            "category": "coupon",
+            "price": 250,
+            "is_transfer_allowed": True,
+        },
+    )
+    assert created.status_code == 201, created.text
+    listing_id = created.json()["id"]
+    approved = client.patch(
+        f"/api/admin/marketplace/listings/{listing_id}",
+        headers=admin_headers,
+        json={"status": "approved", "note": "Test approval"},
+    )
+    assert approved.status_code == 200, approved.text
+    return listing_id
+
+
+def test_sandbox_order_is_idempotent_and_fee_split(
+    client: TestClient, demo_headers, seller_headers, admin_headers
+) -> None:
+    listing_id = _approved_listing(client, seller_headers, admin_headers, "Idempotency test coupon")
+    key = "idem-test-order-0001"
+    first = client.post(
+        "/api/marketplace/orders",
+        headers=demo_headers,
+        json={"listing_id": listing_id, "delivery_details": {"note": "idempotency test"}, "idempotency_key": key},
+    )
+    assert first.status_code == 201, first.text
+    payload = first.json()
+    expected_fee = round(payload["amount"] * 0.05, 2)
+    assert abs(payload["platform_fee"] - expected_fee) < 0.01
+    assert abs((payload["platform_fee"] + payload["seller_payout"]) - payload["amount"]) < 0.01
+
+    replay = client.post(
+        "/api/marketplace/orders",
+        headers=demo_headers,
+        json={"listing_id": listing_id, "delivery_details": {"note": "idempotency test"}, "idempotency_key": key},
+    )
+    assert replay.status_code == 201
+    assert replay.json()["id"] == payload["id"]
+    assert replay.json()["idempotent_replay"] is True
+
+
+def test_duplicate_open_dispute_rejected(
+    client: TestClient, demo_headers, seller_headers, admin_headers
+) -> None:
+    listing_id = _approved_listing(client, seller_headers, admin_headers, "Dispute test coupon")
+    order = client.post(
+        "/api/marketplace/orders",
+        headers=demo_headers,
+        json={"listing_id": listing_id, "idempotency_key": "idem-dispute-order-0001"},
+    )
+    assert order.status_code == 201, order.text
+    order_id = order.json()["id"]
+    first = client.post(
+        "/api/marketplace/disputes",
+        headers=demo_headers,
+        json={"order_id": order_id, "reason": "First sandbox dispute for duplicate check."},
+    )
+    assert first.status_code == 201
+    duplicate = client.post(
+        "/api/marketplace/disputes",
+        headers=demo_headers,
+        json={"order_id": order_id, "reason": "Second sandbox dispute should be rejected."},
+    )
+    assert duplicate.status_code == 409

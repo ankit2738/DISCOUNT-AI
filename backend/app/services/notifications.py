@@ -44,10 +44,13 @@ def send_telegram(chat_id: str, text: str) -> tuple[str, str | None, str | None]
         response.raise_for_status()
         payload = response.json()
         if not payload.get("ok"):
-            return "failed", None, str(payload)[:300]
+            description = str(payload.get("description") or "Telegram rejected the request")
+            return "failed", None, description[:300]
         return "sent", str(payload.get("result", {}).get("message_id")), None
-    except Exception as exc:  # noqa: BLE001
-        return "failed", None, f"{type(exc).__name__}: {exc}"[:300]
+    except httpx.HTTPStatusError as exc:
+        return "failed", None, f"Telegram API returned HTTP {exc.response.status_code}"
+    except httpx.HTTPError as exc:
+        return "failed", None, f"Telegram request failed: {type(exc).__name__}"
 
 
 def send_whatsapp(phone: str, text: str) -> tuple[str, str | None, str | None]:

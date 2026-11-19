@@ -10,7 +10,24 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Preference, User, UserProfile
+from app.models import (
+    AffiliateClick,
+    AIConversation,
+    AIMessage,
+    AnalyticsEvent,
+    CartItem,
+    Notification,
+    Preference,
+    PriceAlert,
+    Purchase,
+    RecurringPurchase,
+    ShoppingCart,
+    ShoppingMemory,
+    User,
+    UserProfile,
+    WarrantyRecord,
+    Watchlist,
+)
 from app.schemas import (
     ChangePasswordRequest,
     DeleteAccountRequest,
@@ -241,13 +258,64 @@ def delete_account(
         after={"deleted": True},
         ip_address=request.client.host if request.client else None,
     )
+    cart_ids = [
+        cart.id
+        for cart in db.scalars(select(ShoppingCart).where(ShoppingCart.user_id == user.id)).all()
+    ]
+    if cart_ids:
+        for item in db.scalars(select(CartItem).where(CartItem.cart_id.in_(cart_ids))).all():
+            db.delete(item)
+        for cart in db.scalars(select(ShoppingCart).where(ShoppingCart.id.in_(cart_ids))).all():
+            db.delete(cart)
+    conversation_ids = [
+        conversation.id
+        for conversation in db.scalars(
+            select(AIConversation).where(AIConversation.user_id == user.id)
+        ).all()
+    ]
+    if conversation_ids:
+        for message in db.scalars(
+            select(AIMessage).where(AIMessage.conversation_id.in_(conversation_ids))
+        ).all():
+            db.delete(message)
+        for conversation in db.scalars(
+            select(AIConversation).where(AIConversation.id.in_(conversation_ids))
+        ).all():
+            db.delete(conversation)
+    for model in (
+        PriceAlert,
+        Watchlist,
+        RecurringPurchase,
+        ShoppingMemory,
+        Notification,
+        WarrantyRecord,
+        Purchase,
+        UserProfile,
+        Preference,
+    ):
+        for row in db.scalars(select(model).where(model.user_id == user.id)).all():
+            db.delete(row)
+    for event in db.scalars(select(AnalyticsEvent).where(AnalyticsEvent.user_id == user.id)).all():
+        event.user_id = None
+        event.session_id = None
+        event.meta = {"deidentified": True}
+    for click in db.scalars(select(AffiliateClick).where(AffiliateClick.user_id == user.id)).all():
+        click.user_id = None
+        click.session_id = None
     user.deleted_at = datetime.now(timezone.utc)
     user.is_active = False
     user.email = f"deleted-{user.id}-{new_token()[:12]}@invalid.local"
+    user.full_name = "Deleted user"
+    user.phone = None
+    user.password_hash = hash_password(new_token())
     user.verification_token = None
     user.reset_token = None
+    user.reset_expires_at = None
     db.commit()
-    return {"status": "account_deleted", "note": "Analytics events are retained only in de-identified form."}
+    return {
+        "status": "account_deleted",
+        "note": "Personal tracking records were deleted; analytics were de-identified. Sandbox marketplace order records may be retained for dispute and audit integrity.",
+    }
 
 
 @router.post("/logout")

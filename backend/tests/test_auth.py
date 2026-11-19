@@ -87,11 +87,24 @@ def test_change_password_and_delete_account(client: TestClient) -> None:
         json={"current_password": "Password123!", "new_password": "Password456!"},
     )
     assert changed.status_code == 200
+    chat = client.post(
+        "/api/ai/chat",
+        headers=headers,
+        json={"message": "Phone under 30000", "session_id": f"delete-{uuid.uuid4().hex}"},
+    )
+    assert chat.status_code == 200
+    conversation_id = chat.json()["conversation_id"]
     deleted = client.request("DELETE", "/api/auth/account", headers=headers, json={"password": "Password456!"})
     assert deleted.status_code == 200
     assert deleted.json()["status"] == "account_deleted"
     login = client.post("/api/auth/login", json={"email": email, "password": "Password456!"})
     assert login.status_code == 401
+
+    from app.db import SessionLocal
+    from app.models import AIConversation
+
+    with SessionLocal() as db:
+        assert db.get(AIConversation, conversation_id) is None
 
 
 def test_requires_authentication(client: TestClient) -> None:

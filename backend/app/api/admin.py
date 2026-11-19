@@ -588,9 +588,31 @@ def moderate_seller(
     if seller is None:
         raise HTTPException(status_code=404, detail="Seller not found")
     seller.status = payload.status
-    record_audit(db, admin.id, "admin.marketplace_seller_moderate", "marketplace_seller", seller.id, after={"status": payload.status})
+    seller_user = db.get(User, seller.user_id)
+    role_updated = False
+    if seller_user is not None and seller_user.role != "admin":
+        if payload.status == "approved" and seller_user.role != "seller":
+            seller_user.role = "seller"
+            role_updated = True
+        elif payload.status != "approved" and seller_user.role == "seller":
+            seller_user.role = "user"
+            role_updated = True
+    record_audit(
+        db,
+        admin.id,
+        "admin.marketplace_seller_moderate",
+        "marketplace_seller",
+        seller.id,
+        after={"status": payload.status, "role_updated": role_updated},
+    )
     db.commit()
-    return {"id": seller.id, "status": seller.status}
+    return {
+        "id": seller.id,
+        "status": seller.status,
+        "user_id": seller.user_id,
+        "user_role": seller_user.role if seller_user else None,
+        "role_updated": role_updated,
+    }
 
 
 @router.get("/marketplace/disputes")

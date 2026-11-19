@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark, Loader2, Trash2 } from "lucide-react";
+import { Bookmark, Copy, Loader2, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,12 @@ export default function CouponWalletPage() {
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setWalletIds(getWalletIds());
     setLoading(true);
+    setError(null);
     try {
       const payload = await apiFetch<{ items: CouponItem[] }>("/api/coupons?include_expired=true&limit=100");
       setCoupons(payload.items);
@@ -34,8 +36,30 @@ export default function CouponWalletPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    function syncWallet() {
+      setWalletIds(getWalletIds());
+    }
+    window.addEventListener("storage", syncWallet);
+    window.addEventListener("focus", syncWallet);
+    return () => {
+      window.removeEventListener("storage", syncWallet);
+      window.removeEventListener("focus", syncWallet);
+    };
+  }, []);
+
   function remove(couponId: number) {
     setWalletIds(toggleWalletCoupon(couponId));
+    setNotice("Coupon removed from this browser wallet.");
+  }
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setNotice(`Copied ${code}. Confirm eligibility at checkout.`);
+    } catch {
+      setNotice("Clipboard access denied. Copy the code manually.");
+    }
   }
 
   const saved = coupons.filter((coupon) => walletIds.includes(coupon.id));
@@ -47,6 +71,7 @@ export default function CouponWalletPage() {
         Coupons saved on this browser. Wallet storage is local to this demo device; coupon validity must be confirmed on the retailer site.
       </p>
 
+      {notice && <p className="mt-4 rounded-lg border bg-card p-3 text-sm">{notice}</p>}
       {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 
       <div className="mt-5 space-y-3">
@@ -67,6 +92,7 @@ export default function CouponWalletPage() {
                 <p className="text-sm font-semibold text-primary">
                   {coupon.discount_type === "percent" ? `${coupon.discount_value}% off` : `${formatINR(coupon.discount_value)} off`}
                 </p>
+                <Button variant="outline" size="sm" onClick={() => void copyCode(coupon.code)}><Copy className="mr-1 h-4 w-4" /> Copy</Button>
                 <Button variant="ghost" size="icon" aria-label="Remove from wallet" onClick={() => remove(coupon.id)}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </CardContent>

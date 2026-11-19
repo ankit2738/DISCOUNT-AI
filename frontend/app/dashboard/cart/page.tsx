@@ -196,7 +196,7 @@ export default function CartPage() {
                   {store.items.map((line) => (
                     <div key={`${line.product_id}-${line.variant_id}`} className="flex justify-between gap-2 text-xs">
                       <span>{line.recommended_listing.title} × {line.quantity}</span>
-                      <span>{formatINR(line.line_effective_total)}</span>
+                      <span>{formatINR(line.line_pre_offer_total ?? line.line_merchandise_total ?? 0)}</span>
                     </div>
                   ))}
                   <div className="border-t pt-2 text-xs">

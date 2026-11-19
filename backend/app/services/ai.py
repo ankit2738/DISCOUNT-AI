@@ -119,11 +119,18 @@ def rule_based_reply(
     message: str,
     budget: Decimal | None = None,
     category: str | None = None,
+    context: dict | None = None,
 ) -> dict:
     budget = budget or parse_budget(message)
     category = category or detect_category(message)
     query_terms = "" if category else message
     products = grounded_products(db, budget, category, query_terms)
+    context = context or {}
+    context_used = {
+        key: context.get(key)
+        for key in ("memory", "saved_products", "active_alerts", "recurring_purchases")
+        if context.get(key)
+    }
 
     if not products:
         return {
@@ -139,6 +146,7 @@ def rule_based_reply(
                 "Only demo/verified catalogue records in this deployment are searched.",
                 "No external AI provider is configured; this answer is rule-based.",
             ],
+            "context_used": context_used,
             "is_demo": True,
         }
 
@@ -179,6 +187,7 @@ def rule_based_reply(
             "No external AI provider is configured, so this response is deterministic and rule-based.",
             "Recommendations do not account for live stock beyond the last verified timestamp.",
         ],
+        "context_used": context_used,
         "is_demo": True,
     }
 
@@ -186,15 +195,29 @@ def rule_based_reply(
 class AIProvider:
     name = "base"
 
-    def chat(self, db: Session, message: str, budget: Decimal | None, category: str | None) -> dict:
+    def chat(
+        self,
+        db: Session,
+        message: str,
+        budget: Decimal | None,
+        category: str | None,
+        context: dict | None = None,
+    ) -> dict:
         raise NotImplementedError
 
 
 class FallbackProvider(AIProvider):
     name = "rule_based_fallback"
 
-    def chat(self, db: Session, message: str, budget: Decimal | None, category: str | None) -> dict:
-        return rule_based_reply(db, message, budget, category)
+    def chat(
+        self,
+        db: Session,
+        message: str,
+        budget: Decimal | None,
+        category: str | None,
+        context: dict | None = None,
+    ) -> dict:
+        return rule_based_reply(db, message, budget, category, context)
 
 
 class OpenAICompatibleProvider(AIProvider):
@@ -213,11 +236,19 @@ class OpenAICompatibleProvider(AIProvider):
             arguments.get("query", ""),
         )
 
-    def chat(self, db: Session, message: str, budget: Decimal | None, category: str | None) -> dict:
+    def chat(
+        self,
+        db: Session,
+        message: str,
+        budget: Decimal | None,
+        category: str | None,
+        context: dict | None = None,
+    ) -> dict:
         budget = budget or parse_budget(message)
         category = category or detect_category(message)
         products = grounded_products(db, budget, category, "" if category else message)
         catalog_json = json.dumps(products, default=str)
+        context_json = json.dumps(context or {}, default=str)
         headers = {"Authorization": f"Bearer {settings.ai_api_key}", "Content-Type": "application/json"}
         tool = {
             "type": "function",
@@ -245,7 +276,11 @@ class OpenAICompatibleProvider(AIProvider):
             },
             {
                 "role": "user",
-                "content": f"Question: {message}\nGrounded catalogue records (JSON): {catalog_json}",
+                "content": (
+                    f"Question: {message}\n"
+                    f"Grounded catalogue records (JSON): {catalog_json}\n"
+                    f"User-approved shopping context (JSON): {context_json}"
+                ),
             },
         ]
         try:
@@ -265,7 +300,7 @@ class OpenAICompatibleProvider(AIProvider):
             payload = response.json()
             content = payload["choices"][0]["message"].get("content") or ""
             if not content.strip():
-                content = rule_based_reply(db, message, budget, category)["reply"]
+                content = rule_based_reply(db, message, budget, category, context)["reply"]
             return {
                 "provider": self.name,
                 "grounded": True,
@@ -284,7 +319,7 @@ class OpenAICompatibleProvider(AIProvider):
                 "is_demo": True,
             }
         except Exception as exc:  # noqa: BLE001
-            fallback = rule_based_reply(db, message, budget, category)
+            fallback = rule_based_reply(db, message, budget, category, context)
             fallback["provider"] = "fallback_after_provider_error"
             fallback["limitations"].append(f"External AI provider call failed: {type(exc).__name__}")
             return fallback

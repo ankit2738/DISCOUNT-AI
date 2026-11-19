@@ -79,9 +79,17 @@ def list_reports(
 
 
 @router.get("/reports/{report_id}")
-def get_report(report_id: int, db: Session = Depends(get_db)):
+def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
     report = db.get(CommunityReport, report_id)
     if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    is_owner = user is not None and report.user_id == user.id
+    is_admin = user is not None and user.role == "admin"
+    if report.status not in {"approved", "duplicate", "rejected"} and not (is_owner or is_admin):
         raise HTTPException(status_code=404, detail="Report not found")
     return _report_payload(db, report)
 
@@ -140,10 +148,12 @@ def vote_report(
     db: Session = Depends(get_db),
 ):
     report = db.get(CommunityReport, report_id)
-    if report is None or report.status not in {"approved", "pending"}:
+    if report is None:
         raise HTTPException(status_code=404, detail="Report not available for voting")
     if report.user_id == user.id:
         raise HTTPException(status_code=400, detail="You cannot vote on your own report")
+    if report.status != "approved":
+        raise HTTPException(status_code=404, detail="Report is not yet approved for voting")
     vote = db.scalar(
         select(CommunityVote).where(
             CommunityVote.report_id == report_id, CommunityVote.user_id == user.id
