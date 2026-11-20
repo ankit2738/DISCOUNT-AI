@@ -1,21 +1,21 @@
 # Test Report
 
-Last verified: 2026-11-19 (Asia/Kolkata local machine, macOS, Apple silicon).
+Last verified: 2026-11-20 (Asia/Kolkata local machine, macOS, Apple silicon).
 
 ## Summary
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Backend API/unit | `cd backend && ../.venv/bin/python -m pytest -q` | **81 passed**, 1 warning, ~1.6s |
+| Backend API/unit | `cd backend && ../.venv/bin/python -m pytest -q` | **85 passed**, 1 warning, ~1.8s |
 | Frontend typecheck | `cd frontend && npm run typecheck` | **Passed** |
 | Frontend unit | `cd frontend && npm test` | **16 passed** in 4 files |
-| Frontend production build | `cd frontend && npm run build` | **Passed**, 44 routes |
+| Frontend production build | `cd frontend && npm run build` | **Passed**, 45 routes |
 | Browser smoke | `cd frontend && npm run test:e2e` | **12 passed** Chromium |
 | Extension-focused Playwright | `npx playwright test e2e/extension.spec.ts` | **3 passed** Chromium |
 | Persistence and permissions | Authenticated Docker PostgreSQL/restart script | **11 checks passed** |
-| Docker build | `docker compose build` | Backend, worker, beat, frontend built |
-| Docker runtime | `docker compose up -d` | db/redis/backend healthy; worker/beat/frontend up |
-| Final workflow smoke | Authenticated API script through frontend proxy | **14 checks passed** |
+| Docker build | `docker compose build backend worker beat frontend` | Built with `cryptography`; migration `9b7d1a2c4e5f` applied |
+| Docker runtime | `docker compose up -d` | db/redis/backend healthy; worker/beat/frontend up; Alembic at head |
+| Docker coupon workflow | PostgreSQL-backed create → approve → buy → reveal → review → savings → matcher → better-deal script | **Passed** |
 | Final archives | `unzip -t` on all release ZIPs | **Passed** |
 
 ## Backend
@@ -38,6 +38,10 @@ Coverage areas exercised by the suite:
 - Warranty ownership, seller-role approval, extension exact-variant matching and unrelated-page rejection.
 - Marketplace fee split, order idempotency, duplicate-dispute rejection, seller earnings and refund state.
 - Cart delivery/pre-offer totals and coupon non-duplication.
+- Coupon code encryption/masking, duplicate fingerprint rejection, buyer-only reveal, wallet, redemption, verified savings, review uniqueness and report resolution.
+- Smart Coupon Matcher eligibility and net-savings output; Better Deal Alternative lowest valid payable.
+- Expiry reminder idempotency for purchased coupons.
+- Alembic upgrade from an empty SQLite database through all revisions.
 
 Observed warning:
 

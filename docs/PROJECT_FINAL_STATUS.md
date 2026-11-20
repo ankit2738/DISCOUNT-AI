@@ -1,6 +1,6 @@
 # DISCOUNT AI — Project Final Status
 
-Status date: 2026-11-19. Project root: `~/DISCOUNT-AI`.
+Status date: 2026-11-20. Project root: `~/DISCOUNT-AI`.
 
 ## Delivery summary
 
@@ -10,7 +10,7 @@ DISCOUNT AI is a runnable Indian shopping-intelligence application with a Next.j
 
 | Package | Contents | Verification |
 | --- | --- | --- |
-| `releases/final/DISCOUNT_AI_FINAL.zip` | Complete frontend/backend source, migrations, extension, PWA, tests, Docker, `.env.example`, documentation and final reports | `unzip -t` passed; extracted backend suite 81 passed |
+| `releases/final/DISCOUNT_AI_FINAL.zip` | Complete frontend/backend source, migrations, extension, PWA, tests, Docker, `.env.example`, documentation and final reports | `unzip -t` passed; extracted backend suite 85 passed |
 | `releases/final/DISCOUNT_AI_CHROME_EXTENSION.zip` | Load-ready MV3 extension files and icons | `unzip -t` passed; manifest and JavaScript syntax checked |
 | `releases/final/DISCOUNT_AI_DOCUMENTATION.zip` | Documentation, acceptance matrix, status report, verification log and final report | `unzip -t` passed |
 | `releases/final/DISCOUNT_AI_FINAL_REPORT.pdf` | Printable final verification report | Valid PDF generated and inspected |
@@ -21,16 +21,16 @@ Secrets, `.env`, databases, virtualenvs, `node_modules`, build caches and test a
 
 | Check | Actual result |
 | --- | --- |
-| Backend Pytest | 81 passed, 1 dependency deprecation warning |
+| Backend Pytest | 85 passed, 1 dependency deprecation warning |
 | Frontend Vitest | 16 passed in 4 files |
 | TypeScript | Passed |
-| Production build | Passed, 44 routes |
+| Production build | Passed, 45 routes |
 | Playwright Chromium | 12 passed |
 | Extension-focused Playwright | 3 passed |
-| Workflow API smoke | 14 checks passed: login, search, comparison, offers, history, alerts, AI, memory, extension resolve/intelligence, marketplace, seller workspace, admin overview/integrations |
-| Persistence and permissions | 11 checks passed: invalid-password rejection; shopper/seller admin denial; admin access; seller workspace; PostgreSQL memory persistence across backend restart; cleanup |
-| Docker Compose | Config valid; backend healthy; db/redis healthy; frontend/worker/beat up |
-| Database | PostgreSQL connected; Alembic current/head `2f6a9c31b7d4` |
+| Docker coupon workflow | Create, approve, buy, reveal-only-to-buyer, review, savings, matcher and better-deal checks passed |
+| Persistence and permissions | Prior 11 permission/persistence checks remain covered by Pytest and Docker runtime |
+| Docker Compose | Config valid; backend healthy; db/redis healthy; frontend/worker/beat up; new migration applied |
+| Database | PostgreSQL connected; Alembic current/head `9b7d1a2c4e5f` |
 | Legacy health | `{"status":"ok","service":"discount-ai-backend"}` |
 | API health | Connected PostgreSQL, actual counts, fallback AI and sandbox payment status |
 | Frontend proxy | Verified for public, authenticated, admin and extension APIs |

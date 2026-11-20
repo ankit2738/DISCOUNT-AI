@@ -1,6 +1,6 @@
 # DISCOUNT AI — Final Acceptance Matrix
 
-Verified: 2026-11-19 (Asia/Kolkata). Environment: local macOS/Apple silicon, Node 22, Python 3.14 test runner, Docker Compose with PostgreSQL 17 and Redis 7.
+Verified: 2026-11-20 (Asia/Kolkata). Environment: local macOS/Apple silicon, Node 22, Python 3.14 test runner, Docker Compose with PostgreSQL 17 and Redis 7.
 
 Grade definitions:
 
@@ -70,13 +70,23 @@ Grade definitions:
 | Owner privacy for pending reports | A | Pending reports restricted; owner/non-approved vote rules tested |
 | Admin community moderation | A | Approve/reject/duplicate with audit note |
 | Contributor leaderboard | A | Pytest leaderboard |
-| Seller application and admin approval | A | Seller lifecycle Pytest coverage |
-| Marketplace listing creation and moderation | A | Pending/approved/sold/expired states tested |
-| Sandbox order purchase and idempotency | B | Sandbox records only; fee/idempotency tests |
+| Seller application, evidence and admin approval | A | Seller lifecycle Pytest coverage and admin verification UI |
+| Marketplace listing fields, filters and sorting | A | Retailer, brand, category, value/price filters, expiry/discount/price sorts verified against PostgreSQL |
+| Coupon code encryption, masking and buyer-only reveal | A | Fernet encryption, public masking, buyer-only reveal audit, wallet tests |
+| Duplicate coupon detection | A | Fingerprint-based duplicate rejection tested |
+| Non-transferable coupon prevention | A | Creation and admin approval reject non-transferable listings; purchase re-checks |
+| Listing edit and withdrawal | A | Seller-owned edit resets to pending; unsold withdrawal tested |
+| Seller reputation and verified-purchase reviews | A | One review per order; rating shown as unrated until verified reviews exist |
+| Invalid-coupon reports and listing suspension | A | Report creation, duplicate protection and admin suspension tested |
+| Sandbox order purchase, wallet and idempotency | B | Sandbox records only; fee/idempotency/wallet tests |
+| Redemption tracking and verified savings | A | Buyer redemption updates listing/order and the savings dashboard |
 | 5% demo fee and seller payout reporting | B | Decimal fee split tested; no real settlement |
 | Disputes, duplicate prevention and sandbox refund | B | Pytest dispute/refund flow; admin resolution |
 | Expired listing rejection | A | Expiry validation tested |
 | Raw card/CVV/UPI rejection | A | API validation plus marketplace UI disclosure |
+| Coupon expiry reminders | A | Purchased-coupon reminders are idempotent; saved local coupons show a 3-day warning |
+| Smart Coupon Matcher and Better Deal Alternative | A | Eligibility/net-saving ranking and lowest valid payable APIs plus UI |
+| Savings dashboard | A | Verified vs estimated savings, retailer and monthly history tested |
 
 ## Admin, analytics and attribution
 
@@ -108,7 +118,7 @@ Grade definitions:
 
 | Requirement | Grade | Evidence / boundary |
 | --- | --- | --- |
-| Public, dashboard and admin routes | A | 44-route production build |
+| Public, dashboard and admin routes | A | 45-route production build including `/dashboard/savings` |
 | Mobile search and responsive shells | A | Header/search implementation and Playwright viewport smoke |
 | Functional compare, cart, offers, memory, AI and marketplace actions | A | Playwright and API smoke |
 | PWA manifest and PNG icons | B | Installable assets present; no browser install prompt automation |
@@ -118,20 +128,20 @@ Grade definitions:
 
 | Requirement | Grade | Evidence / boundary |
 | --- | --- | --- |
-| PostgreSQL schema and Alembic migration | A | Docker DB at head `2f6a9c31b7d4` |
+| PostgreSQL schema and Alembic migration | A | Docker DB at head `9b7d1a2c4e5f` |
 | SQLite local/test mode | A | Backend suite uses isolated SQLite |
 | Redis/Celery worker and beat | B | Containers healthy; schedules locally exercised, no production observability |
 | Docker Compose stack | A | DB/Redis/backend healthy; frontend/worker/beat up |
 | `/health` contract and `/api/health` | A | Exact contract and PostgreSQL connectivity verified |
-| Backend tests | A | 81 passed |
+| Backend tests | A | 85 passed |
 | Frontend unit tests | A | 16 passed in 4 files |
 | Playwright | A | 12 passed Chromium tests |
 | Extension-focused Playwright | A | 3 passed parser/resolve tests |
-| TypeScript and production build | A | Typecheck passed; 44 routes built |
+| TypeScript and production build | A | Typecheck passed; 45 routes built |
 | Permissions and persistence | A | 11 checks passed, including PostgreSQL memory persistence across backend restart |
 | Retailer/affiliate live integrations | C | Authorized feeds/agreements/credentials required |
 | Live payment and external notification providers | C | Sandbox/console/fallback only; no real delivery or money movement claimed |
-| Documentation and final packages | A | API/schema/architecture/status/test/integration docs, verified source/extension/documentation ZIPs and final PDF |
+| Documentation and final packages | A | API/schema/architecture/status/test/integration docs plus coupon marketplace guide, verified source/extension/documentation ZIPs and final PDF |
 
 ## Remaining limitations
 

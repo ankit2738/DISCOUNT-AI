@@ -133,6 +133,7 @@ class ModerationRequest(BaseModel):
 class SellerApplyRequest(BaseModel):
     display_name: str = Field(min_length=2, max_length=160)
     bio: str = Field(default="", max_length=2000)
+    verification_evidence_url: str | None = Field(default=None, max_length=600)
 
 
 class MarketplaceListingCreate(BaseModel):
@@ -143,6 +144,26 @@ class MarketplaceListingCreate(BaseModel):
     proof_url: str | None = Field(default=None, max_length=600)
     expires_at: datetime | None = None
     is_transfer_allowed: bool = False
+    retailer_id: int | None = None
+    brand: str = Field(default="", max_length=120)
+    coupon_code: str | None = Field(default=None, min_length=3, max_length=200)
+    coupon_value: Decimal = Field(default=Decimal("0"), ge=0)
+    min_order: Decimal = Field(default=Decimal("0"), ge=0)
+    applicable_products: list[str] = Field(default_factory=list, max_length=50)
+    usage_restrictions: str = Field(default="", max_length=4000)
+    redemption_instructions: str = Field(default="", max_length=4000)
+    issuer_terms: str = Field(default="", max_length=4000)
+
+
+class MarketplaceListingUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
+    price: Decimal | None = Field(default=None, gt=0)
+    expires_at: datetime | None = None
+    proof_url: str | None = Field(default=None, max_length=600)
+    is_transfer_allowed: bool | None = None
+    usage_restrictions: str | None = Field(default=None, max_length=4000)
+    redemption_instructions: str | None = Field(default=None, max_length=4000)
 
 
 class MarketplaceOrderCreate(BaseModel):
@@ -160,6 +181,37 @@ class DisputeCreate(BaseModel):
 class DisputeResolution(BaseModel):
     status: Literal["resolved_rejected", "resolved_refunded"]
     resolution: str = Field(min_length=2, max_length=2000)
+
+
+class SellerReviewCreate(BaseModel):
+    order_id: int
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=2000)
+
+
+class CouponReportCreate(BaseModel):
+    listing_id: int
+    order_id: int | None = None
+    reason: str = Field(min_length=5, max_length=2000)
+    evidence_url: str | None = Field(default=None, max_length=600)
+
+
+class CouponReportResolve(BaseModel):
+    status: Literal["resolved_valid", "resolved_invalid", "dismissed"]
+    resolution: str = Field(min_length=2, max_length=2000)
+
+
+class CouponMatchItem(BaseModel):
+    listing_id: int | None = None
+    product_id: int | None = None
+    retailer_id: int | None = None
+    amount: Decimal = Field(gt=0)
+    quantity: int = Field(default=1, ge=1, le=20)
+
+
+class CouponMatchRequest(BaseModel):
+    items: list[CouponMatchItem] = Field(min_length=1, max_length=50)
+    include_marketplace: bool = True
 
 
 class PurchaseCreate(BaseModel):

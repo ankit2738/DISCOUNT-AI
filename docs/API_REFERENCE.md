@@ -146,16 +146,38 @@ Admin routes require role `admin`. Errors use FastAPI’s `{"detail": ...}` shap
 | GET | `/api/community/leaderboard` | — | Contributor leaderboard. |
 | POST | `/api/contact` | Optional | Store contact message; explicitly does not claim external email delivery. |
 
+## Coupon intelligence additions
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| POST | `/api/coupons/match` | Optional | Smart Coupon Matcher: expiry, minimum order, product eligibility, verified and marketplace listings, net-savings ranking. |
+| GET | `/api/better-deal/{listing_id}` | Optional | Better Deal Alternative: direct purchase with eligible coupon/bank offer versus marketplace coupon options and lowest valid final payable. |
+| GET | `/api/account/savings` | User | Savings dashboard with verified vs estimated savings, coupons purchased/redeemed, price drops, retailer and monthly history. |
+| GET | `/api/retailers` | Optional | Retailer options for marketplace filters and listing forms. |
+
 ## Marketplace (sandbox)
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/api/marketplace/listings` | Optional | Approved listings. |
-| POST | `/api/marketplace/listings` | User | Create listing for moderation. |
-| POST | `/api/marketplace/seller/apply` | User | Apply as seller. |
-| GET | `/api/marketplace/seller/me` | User | Own seller profile. |
+| GET | `/api/marketplace/listings` | Optional | Approved, transferable listings with search, retailer/brand/category filters, price/value filters and sort. |
+| GET | `/api/marketplace/listings/{listing_id}` | Optional | Public listing detail; coupon code is masked only. |
+| POST | `/api/marketplace/listings` | Seller/admin | Create listing; validates issuer transfer permission, expiry, duplicate code fingerprint, encrypts the code and hides it from public text. |
+| PATCH | `/api/marketplace/listings/{listing_id}` | Seller | Edit own pending/rejected/approved listing; resets to pending for re-verification. |
+| POST | `/api/marketplace/listings/{listing_id}/withdraw` | Seller | Withdraw own unsold listing. |
+| POST | `/api/marketplace/seller/apply` | User | Apply as seller with optional verification evidence. |
+| GET | `/api/marketplace/seller/me` | User | Seller workspace: listings, orders, sandbox fees/payout, reviews and reports. |
+| PATCH | `/api/marketplace/seller/me` | Seller | Update seller profile. |
+| GET | `/api/marketplace/sellers/{seller_id}` | Optional | Public seller reputation and verified-purchase reviews. |
+| GET | `/api/marketplace/wallet` | User | Buyer coupon wallet with decrypted codes, redemption state and expiry reminders. |
 | GET | `/api/marketplace/orders` | User | Buyer/seller sandbox orders. |
-| POST | `/api/marketplace/orders` | User | Create sandbox order; rejects raw payment details. |
+| POST | `/api/marketplace/orders` | User | Create sandbox order; copies the encrypted code to the buyer-only order record and rejects raw payment details. |
+| GET | `/api/marketplace/orders/{order_id}/coupon` | Buyer | Authorised reveal; audits access and never exposes codes publicly. |
+| POST | `/api/marketplace/orders/{order_id}/redeem` | Buyer | Mark purchased coupon redeemed for verified savings. |
+| POST | `/api/marketplace/orders/{order_id}/refund-request` | Buyer | Request sandbox refund/dispute for an unredeemed order. |
+| POST | `/api/marketplace/reviews` | Buyer | One verified-purchase review per order; updates seller rating and reputation. |
+| POST | `/api/marketplace/reports` | User | Report invalid/already-used coupon with duplicate-open-report protection. |
+| GET | `/api/marketplace/reports` | User | Own reports and resolution status. |
+| POST | `/api/marketplace/reminders/expiry` | User | Create in-app expiry reminders for purchased coupons expiring within 7 days. |
 | GET | `/api/marketplace/disputes` | User | Own disputes. |
 | POST | `/api/marketplace/disputes` | User | Open dispute; duplicate open disputes are rejected. |
 
@@ -202,6 +224,8 @@ Orders are sandbox-only, split a 5% demo platform fee, and accept an optional `I
 | PATCH | `/api/admin/marketplace/sellers/{seller_id}` | Admin | Moderate seller. |
 | GET | `/api/admin/marketplace/disputes` | Admin | Dispute queue. |
 | POST | `/api/admin/marketplace/disputes/{dispute_id}/resolve` | Admin | Resolve sandbox dispute. |
+| GET | `/api/admin/marketplace/reports` | Admin | Invalid-coupon report queue. |
+| POST | `/api/admin/marketplace/reports/{report_id}/resolve` | Admin | Resolve report; invalid reports can suspend the listing. |
 | GET/POST | `/api/admin/campaigns` | Admin | List/create campaigns. |
 | PATCH/DELETE | `/api/admin/campaigns/{campaign_id}` | Admin | Update/delete campaign. |
 | GET | `/api/admin/affiliate` | Admin | Click attribution and cheaper-store CTR. |

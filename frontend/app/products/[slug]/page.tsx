@@ -58,6 +58,12 @@ export default function ProductPage() {
   const [dealScore, setDealScore] = useState<DealScore | null>(null);
   const [fakeDiscount, setFakeDiscount] = useState<FakeDiscount | null>(null);
   const [buyOrWait, setBuyOrWait] = useState<BuyOrWait | null>(null);
+  const [betterDeal, setBetterDeal] = useState<{
+    lowest_valid_final_price: number | null;
+    recommended: { type: string; label: string; final_payable: number; warnings: string[] } | null;
+    options: { type: string; label: string; final_payable: number; warnings: string[]; components: Record<string, number> }[];
+    disclaimer: string;
+  } | null>(null);
   const [warranty, setWarranty] = useState<Warranty | null>(null);
   const [targetPrice, setTargetPrice] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -107,6 +113,9 @@ export default function ProductPage() {
     setDealScore(null);
     setFakeDiscount(null);
     setBuyOrWait(null);
+    apiFetch<{ lowest_valid_final_price: number | null; recommended: { type: string; label: string; final_payable: number; warnings: string[] } | null; options: { type: string; label: string; final_payable: number; warnings: string[]; components: Record<string, number> }[]; disclaimer: string }>(`/api/better-deal/${listingId}`, { signal: controller.signal })
+      .then(setBetterDeal)
+      .catch(() => setBetterDeal(null));
     apiFetch<PriceHistory>(`/api/price-history?listing_id=${listingId}&days=${historyDays}`, { signal: controller.signal })
       .then(setHistory)
       .catch(() => undefined);
@@ -522,6 +531,25 @@ export default function ProductPage() {
         </TabsContent>
 
         <TabsContent value="offers">
+          {betterDeal && betterDeal.recommended && (
+            <Card className="mb-4">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4" /> Better deal alternative</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="font-semibold">Lowest valid final payable: {formatINR(betterDeal.lowest_valid_final_price ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">{betterDeal.recommended.label} · payable {formatINR(betterDeal.recommended.final_payable)}</p>
+                {betterDeal.options.map((option, index) => (
+                  <div key={`${option.type}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs">
+                    <div>
+                      <p className="font-medium">{option.label}</p>
+                      {option.warnings.map((warning) => <p key={warning} className="text-muted-foreground">{warning}</p>)}
+                    </div>
+                    <span className="font-semibold">{formatINR(option.final_payable)}</span>
+                  </div>
+                ))}
+                <p className="text-[11px] text-muted-foreground">{betterDeal.disclaimer} Marketplace coupons require a separate sandbox purchase.</p>
+              </CardContent>
+            </Card>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader><CardTitle className="text-base">Coupons</CardTitle></CardHeader>

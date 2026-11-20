@@ -521,8 +521,22 @@ export type MarketplaceOrder = {
   status: string;
   payment_provider: string;
   role?: "buyer" | "seller";
+  redemption_status?: string;
+  code_available?: boolean;
+  refund_eligible?: boolean;
   refunded_at?: string | null;
   created_at: string;
+};
+
+export type SellerReputation = {
+  score: number;
+  rating: number | null;
+  review_count: number;
+  completed_sales: number;
+  dispute_count: number;
+  disputes_lost: number;
+  is_verified: boolean;
+  verification_note?: string | null;
 };
 
 export type MarketplaceSeller = {
@@ -533,7 +547,18 @@ export type MarketplaceSeller = {
   status: string;
   rating: number | null;
   total_sales: number;
+  is_verified?: boolean;
+  review_count?: number;
+  reputation?: SellerReputation;
   created_at?: string;
+};
+
+export type SellerReview = {
+  id: number;
+  order_id: number;
+  rating: number;
+  comment: string;
+  created_at: string;
 };
 
 export type SellerWorkspace = {
@@ -544,7 +569,51 @@ export type SellerWorkspace = {
   platform_fees_sandbox: number;
   earnings_sandbox: number;
   refunded_orders: number;
+  reviews?: SellerReview[];
+  reports?: { id: number; listing_id: number; reason: string; status: string }[];
   note: string;
+};
+
+export type CouponWalletItem = {
+  order_id: number;
+  listing_id: number;
+  title: string;
+  retailer_id: number | null;
+  coupon_value: number;
+  paid: number;
+  saving: number;
+  code: string | null;
+  masked_code: string | null;
+  redemption_instructions: string;
+  usage_restrictions: string;
+  min_order: number;
+  expires_at: string | null;
+  expires_in_days: number | null;
+  expiring_soon: boolean;
+  redemption_status: string;
+  order_status: string;
+};
+
+export type SavingsDashboard = {
+  verified_savings: number;
+  estimated_savings: number;
+  coupons_purchased: number;
+  coupons_redeemed: number;
+  price_drops_detected: number;
+  estimated_price_drops: number;
+  successful_deal_discoveries: number;
+  alerts_created: number;
+  alerts_triggered: number;
+  savings_by_retailer: { retailer: string; verified: number; estimated: number }[];
+  monthly_history: { month: string; verified: number; estimated: number }[];
+  definitions: { verified: string; estimated: string };
+  checked_at: string;
+};
+
+export type RetailerOption = {
+  id: number;
+  name: string;
+  slug: string;
 };
 
 export type MarketplaceDispute = {
@@ -588,14 +657,32 @@ export type Purchase = {
 export type MarketplaceListing = {
   id: number;
   seller_id: number;
+  seller_name?: string | null;
+  seller_reputation?: number | null;
+  seller_verified?: boolean;
   title: string;
   description: string;
   category: string;
   price: number;
+  coupon_value?: number;
+  estimated_saving?: number;
+  discount_percent?: number | null;
+  min_order?: number;
+  brand?: string;
+  retailer_id?: number | null;
+  retailer_name?: string | null;
+  applicable_products?: string[];
+  usage_restrictions?: string;
+  redemption_instructions?: string;
+  issuer_terms?: string;
+  usage_status?: string;
+  coupon_code_masked?: string | null;
   proof_url: string | null;
   expires_at: string | null;
+  expired?: boolean;
   status: string;
   is_transfer_allowed: boolean;
+  rejection_reason?: string;
   created_at: string;
 };
 

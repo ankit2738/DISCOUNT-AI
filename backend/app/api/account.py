@@ -12,6 +12,8 @@ from app.deps import get_current_user
 from app.models import (
     AIConversation,
     AIMessage,
+    MarketplaceListing,
+    MarketplaceOrder,
     PriceAlert,
     Product,
     ProductListing,
@@ -400,4 +402,92 @@ def privacy_export(user: User = Depends(get_current_user), db: Session = Depends
             for conversation in conversations
         ],
         "notice": "This export is provided for DPDP access/deletion workflows. Review with qualified counsel before production use.",
+    }
+
+
+@router.get("/api/account/savings")
+def savings_dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    purchases = db.scalars(select(Purchase).where(Purchase.user_id == user.id)).all()
+    orders = db.scalars(select(MarketplaceOrder).where(MarketplaceOrder.buyer_id == user.id)).all()
+    listings = {
+        listing.id: listing
+        for listing in db.scalars(
+            select(MarketplaceListing).where(MarketplaceListing.id.in_({order.listing_id for order in orders}))
+        ).all()
+    } if orders else {}
+    alerts = db.scalars(select(PriceAlert).where(PriceAlert.user_id == user.id)).all()
+
+    monthly: dict[str, dict[str, float]] = {}
+    by_retailer: dict[str, dict[str, float]] = {}
+    verified_savings = Decimal("0")
+    estimated_coupon_savings = Decimal("0")
+    coupons_redeemed = 0
+    coupons_purchased = 0
+    for order in orders:
+        listing = listings.get(order.listing_id)
+        if listing is None or order.status not in {"paid_sandbox", "completed"}:
+            continue
+        coupons_purchased += 1
+        saving = max(Decimal("0"), Decimal(listing.coupon_value or 0) - Decimal(order.amount))
+        estimated_coupon_savings += saving
+        if order.redemption_status == "redeemed":
+            coupons_redeemed += 1
+            verified_savings += saving
+        month = order.created_at.strftime("%Y-%m")
+        monthly.setdefault(month, {"verified": 0.0, "estimated": 0.0})
+        monthly[month]["estimated"] += float(saving)
+        if order.redemption_status == "redeemed":
+            monthly[month]["verified"] += float(saving)
+        retailer = f"retailer:{listing.retailer_id}" if listing.retailer_id else "marketplace"
+        by_retailer.setdefault(retailer, {"verified": 0.0, "estimated": 0.0})
+        by_retailer[retailer]["estimated"] += float(saving)
+        if order.redemption_status == "redeemed":
+            by_retailer[retailer]["verified"] += float(saving)
+
+    price_drops = 0
+    estimated_price_savings = Decimal("0")
+    for purchase in purchases:
+        listing = db.scalar(
+            select(ProductListing)
+            .where(ProductListing.product_id == purchase.product_id)
+            .order_by(ProductListing.price.asc())
+        )
+        if listing is None:
+            continue
+        drop = (Decimal(purchase.price) - Decimal(listing.price)).quantize(Decimal("0.01"))
+        if drop > 0:
+            price_drops += 1
+            estimated_price_savings += drop * purchase.quantity
+            month = purchase.purchased_at.strftime("%Y-%m")
+            monthly.setdefault(month, {"verified": 0.0, "estimated": 0.0})
+            monthly[month]["estimated"] += float(drop * purchase.quantity)
+            key = f"retailer:{purchase.retailer_id}"
+            by_retailer.setdefault(key, {"verified": 0.0, "estimated": 0.0})
+            by_retailer[key]["estimated"] += float(drop * purchase.quantity)
+
+    monthly_history = [
+        {"month": month, **{k: round(v, 2) for k, v in values.items()}}
+        for month, values in sorted(monthly.items())
+    ]
+    return {
+        "verified_savings": money(verified_savings),
+        "estimated_savings": money(estimated_coupon_savings + estimated_price_savings),
+        "coupons_purchased": coupons_purchased,
+        "coupons_redeemed": coupons_redeemed,
+        "price_drops_detected": price_drops,
+        "estimated_price_drops": money(estimated_price_savings),
+        "successful_deal_discoveries": price_drops + coupons_redeemed,
+        "alerts_created": len(alerts),
+        "alerts_triggered": sum(1 for alert in alerts if alert.triggered_at is not None),
+        "savings_by_retailer": [
+            {"retailer": key, **{k: round(v, 2) for k, v in values.items()}}
+            for key, values in sorted(by_retailer.items())
+        ],
+        "monthly_history": monthly_history,
+        "definitions": {
+            "verified": "Only savings from a purchased marketplace coupon the buyer marked as redeemed. No fabricated savings are included.",
+            "estimated": "Coupon value minus paid price for other purchases plus price drops detected against the current lowest store price. Not independently verified.",
+        },
+        "checked_at": now.isoformat(),
     }

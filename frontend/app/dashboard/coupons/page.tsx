@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bookmark, Copy, Loader2, Trash2 } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -63,6 +64,12 @@ export default function CouponWalletPage() {
   }
 
   const saved = coupons.filter((coupon) => walletIds.includes(coupon.id));
+  const now = Date.now();
+  const expiringSoon = saved.filter((coupon) => {
+    if (!coupon.expires_at) return false;
+    const days = (new Date(coupon.expires_at).getTime() - now) / 86_400_000;
+    return days >= 0 && days <= 3;
+  });
 
   return (
     <div>
@@ -71,6 +78,13 @@ export default function CouponWalletPage() {
         Coupons saved on this browser. Wallet storage is local to this demo device; coupon validity must be confirmed on the retailer site.
       </p>
 
+      {expiringSoon.length > 0 && (
+        <Alert className="mt-4" variant="warning">
+          <AlertDescription>
+            {expiringSoon.length} saved coupon(s) expire within 3 days: {expiringSoon.map((coupon) => coupon.code).join(", ")}. Use them before they lapse.
+          </AlertDescription>
+        </Alert>
+      )}
       {notice && <p className="mt-4 rounded-lg border bg-card p-3 text-sm">{notice}</p>}
       {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
 

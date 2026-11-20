@@ -440,6 +440,12 @@ class MarketplaceSeller(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     rating: Mapped[Decimal] = mapped_column(Numeric(2, 1), default=Decimal("0"))
     total_sales: Mapped[int] = mapped_column(Integer, default=0)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    review_count: Mapped[int] = mapped_column(Integer, default=0)
+    dispute_count: Mapped[int] = mapped_column(Integer, default=0)
+    disputes_lost: Mapped[int] = mapped_column(Integer, default=0)
+    reputation_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("50"))
+    verification_evidence_url: Mapped[str | None] = mapped_column(String(600))
 
 
 class MarketplaceListing(Base, TimestampMixin):
@@ -455,6 +461,20 @@ class MarketplaceListing(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     is_transfer_allowed: Mapped[bool] = mapped_column(Boolean, default=False)
+    retailer_id: Mapped[int | None] = mapped_column(ForeignKey("retailers.id", ondelete="SET NULL"))
+    brand: Mapped[str] = mapped_column(String(120), default="")
+    coupon_code_encrypted: Mapped[str | None] = mapped_column(Text)
+    coupon_code_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    coupon_value: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    min_order: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    applicable_products: Mapped[str] = mapped_column(Text, default="")
+    usage_restrictions: Mapped[str] = mapped_column(Text, default="")
+    redemption_instructions: Mapped[str] = mapped_column(Text, default="")
+    issuer_terms: Mapped[str] = mapped_column(Text, default="")
+    usage_status: Mapped[str] = mapped_column(String(30), default="unused")
+    duplicate_of_id: Mapped[int | None] = mapped_column(Integer)
+    rejection_reason: Mapped[str] = mapped_column(Text, default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MarketplaceOrder(Base, TimestampMixin):
@@ -472,6 +492,10 @@ class MarketplaceOrder(Base, TimestampMixin):
     payment_provider: Mapped[str] = mapped_column(String(40), default="sandbox")
     delivery_details: Mapped[dict] = mapped_column(JSON, default=dict)
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    coupon_code_encrypted: Mapped[str | None] = mapped_column(Text)
+    code_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    redemption_status: Mapped[str] = mapped_column(String(30), default="not_redeemed")
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Transaction(Base):
@@ -650,3 +674,29 @@ class AuditLog(Base):
     after_data: Mapped[dict] = mapped_column(JSON, default=dict)
     ip_address: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SellerReview(Base, TimestampMixin):
+    __tablename__ = "seller_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("marketplace_sellers.id", ondelete="CASCADE"), index=True)
+    buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("marketplace_orders.id", ondelete="CASCADE"), unique=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    comment: Mapped[str] = mapped_column(Text, default="")
+    is_verified_purchase: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class MarketplaceCouponReport(Base, TimestampMixin):
+    __tablename__ = "marketplace_coupon_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    listing_id: Mapped[int] = mapped_column(ForeignKey("marketplace_listings.id", ondelete="CASCADE"), index=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("marketplace_orders.id", ondelete="SET NULL"))
+    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(Text)
+    evidence_url: Mapped[str | None] = mapped_column(String(600))
+    status: Mapped[str] = mapped_column(String(30), default="open", index=True)
+    resolution: Mapped[str] = mapped_column(Text, default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -13,6 +13,7 @@ import {
   MapPin,
   Megaphone,
   Package,
+  PiggyBank,
   Settings,
   ShoppingCart,
   Sparkles,
@@ -36,6 +37,7 @@ const LINKS = [
   { href: "/dashboard/purchases", label: "Purchases", icon: Package },
   { href: "/dashboard/community", label: "Community", icon: Users },
   { href: "/dashboard/marketplace", label: "Marketplace", icon: Store },
+  { href: "/dashboard/savings", label: "Savings dashboard", icon: PiggyBank },
   { href: "/dashboard/notifications", label: "Notifications", icon: Megaphone },
   { href: "/dashboard/preferences", label: "Preferences & privacy", icon: Settings },
 ];

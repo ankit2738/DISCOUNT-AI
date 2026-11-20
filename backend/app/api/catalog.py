@@ -64,6 +64,12 @@ def _event(db: Session, user: User | None, event_type: str, **kwargs) -> None:
     db.add(AnalyticsEvent(user_id=user.id if user else None, event_type=event_type, **kwargs))
 
 
+@router.get("/api/retailers")
+def list_retailers(db: Session = Depends(get_db)):
+    retailers = db.scalars(select(Retailer).order_by(Retailer.name.asc())).all()
+    return {"items": [retailer_payload(retailer) for retailer in retailers], "total": len(retailers)}
+
+
 @router.get("/api/products")
 def list_products(
     q: str = "",

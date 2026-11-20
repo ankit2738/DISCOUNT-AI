@@ -34,6 +34,7 @@ from app.models import (
     WarrantyRecord,
 )
 from app.security import hash_password
+from app.services.coupon_security import coupon_fingerprint, encrypt_coupon_code
 
 D = Decimal
 
@@ -439,6 +440,17 @@ def seed_database(db: Session) -> None:
                 expires_at=now + timedelta(days=20),
                 status="approved",
                 is_transfer_allowed=True,
+                retailer_id=retailers["amazon"].id,
+                brand="Amazon",
+                coupon_code_encrypted=encrypt_coupon_code("DEMO-GIFT-500"),
+                coupon_code_hash=coupon_fingerprint("DEMO-GIFT-500", retailers["amazon"].id),
+                coupon_value=D("500"),
+                min_order=D("1000"),
+                applicable_products="",
+                usage_restrictions="Demo only. One redemption per account.",
+                redemption_instructions="Open the demo gift-card page and enter the code at checkout. No real value exists.",
+                issuer_terms="Demo issuer permits sandbox transfer for testing.",
+                usage_status="unused",
             ),
             MarketplaceListing(
                 seller_id=seller.id,
@@ -450,6 +462,13 @@ def seed_database(db: Session) -> None:
                 expires_at=now + timedelta(days=10),
                 status="pending",
                 is_transfer_allowed=False,
+                retailer_id=retailers["flipkart"].id,
+                brand="Flipkart",
+                coupon_value=D("300"),
+                min_order=D("1499"),
+                usage_restrictions="Not transferable; pending moderation.",
+                redemption_instructions="Demo only.",
+                issuer_terms="Issuer does not permit transfer; this row demonstrates moderation rejection.",
             ),
         ]
     )

@@ -1,6 +1,6 @@
 # Database Schema
 
-Current Alembic revision: `2f6a9c31b7d4` (`backend/alembic/versions/2f6a9c31b7d4_memory_warranty_marketplace.py`), building on initial revision `8d4ca53678ff`.
+Current Alembic revision: `9b7d1a2c4e5f` (`backend/alembic/versions/9b7d1a2c4e5f_coupon_marketplace_reputation.py`), building on `2f6a9c31b7d4` and initial revision `8d4ca53678ff`.
 
 PostgreSQL is used in Docker/production; SQLite is supported for local tests. All monetary columns use SQLAlchemy `Numeric`/`Decimal` handling. Seeded rows carry `is_demo=true` where the table supports it.
 
@@ -70,9 +70,11 @@ PostgreSQL is used in Docker/production; SQLite is supported for local tests. Al
 
 | Table | Key fields | Relationships / notes |
 | --- | --- | --- |
-| `marketplace_sellers` | `id`, `user_id`, `display_name`, `bio`, `status`, `rating`, `total_sales` | Seller application/moderation. |
-| `marketplace_listings` | `id`, `seller_id`, `title`, `description`, `category`, `price`, `proof_url`, `expires_at`, `status`, `is_transfer_allowed` | Coupons/vouchers only; moderated. |
-| `marketplace_orders` | `id`, `listing_id`, `buyer_id`, `seller_id`, `amount`, `platform_fee`, `seller_payout`, `idempotency_key` unique, `status`, `payment_provider`, `delivery_details` JSON, `refunded_at`, timestamps | Sandbox payment records only; 5% demo fee split and optional idempotent creation. |
+| `marketplace_sellers` | `id`, `user_id`, `display_name`, `bio`, `status`, `rating`, `total_sales`, `is_verified`, `review_count`, `dispute_count`, `disputes_lost`, `reputation_score`, `verification_evidence_url` | Seller application/moderation and verified reputation. |
+| `marketplace_listings` | `id`, `seller_id`, `title`, `description`, `category`, `price`, `coupon_value`, `min_order`, `retailer_id`, `brand`, `coupon_code_encrypted`, `coupon_code_hash`, `applicable_products`, `usage_restrictions`, `redemption_instructions`, `issuer_terms`, `usage_status`, `proof_url`, `expires_at`, `status`, `is_transfer_allowed`, `rejection_reason`, `approved_at`, timestamps | Coupons/vouchers only; transfer required; codes encrypted and fingerprinted for duplicate detection. |
+| `marketplace_orders` | `id`, `listing_id`, `buyer_id`, `seller_id`, `amount`, `platform_fee`, `seller_payout`, `idempotency_key` unique, `status`, `payment_provider`, `delivery_details` JSON, `coupon_code_encrypted`, `code_delivered_at`, `redemption_status`, `redeemed_at`, `refunded_at`, timestamps | Sandbox payment records only; buyer-only code delivery, redemption state, 5% demo fee split and idempotent creation. |
+| `seller_reviews` | `id`, `seller_id`, `buyer_id`, `order_id` unique, `rating` 1–5, `comment`, `is_verified_purchase`, timestamps | Verified-purchase reviews used for real seller ratings. |
+| `marketplace_coupon_reports` | `id`, `listing_id`, `order_id`, `reporter_id`, `reason`, `evidence_url`, `status`, `resolution`, `resolved_at`, timestamps | Invalid-coupon reports and admin moderation. |
 | `transactions` | `id`, `order_id`, `provider`, `provider_reference`, `amount`, `currency`, `status`, `type`, `meta` | Provider `sandbox`; no card data. |
 | `disputes` | `id`, `order_id`, `opened_by`, `reason`, `evidence_url`, `status`, `resolution`, `resolved_at` | Admin resolution. |
 

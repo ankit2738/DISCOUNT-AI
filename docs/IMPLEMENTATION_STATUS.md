@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last verified: 2026-11-19.
+Last verified: 2026-11-20.
 
 Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker stack, tests and documentation are implemented. External retailer/AI/notification/payment integrations are intentionally **not live**; all seeded data is labelled demo data.
 
@@ -19,15 +19,15 @@ Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker st
 | 9 | Price alerts, notifications and provider status | Complete |
 | 10 | AI Copilot with deterministic fallback and persisted conversations | Complete |
 | 11 | Community evidence, moderation and leaderboard | Complete |
-| 12 | Sandbox coupon marketplace and disputes | Complete |
+| 12 | Coupon marketplace with encrypted codes, seller lifecycle, verified reputation, reviews, reports, refunds and disputes | Complete |
 | 13 | Sale campaigns, affiliate attribution and admin operations | Complete |
 | 14 | Next.js public PWA, dashboard and admin UI | Complete |
 | 15 | Chrome MV3 extension | Complete (manual load, not store-published) |
-| 16 | Tests, Docker, environment template and documentation | Complete |
+| 16 | Smart coupon matcher, savings dashboard, expiry reminders, tests, Docker, environment template and documentation | Complete |
 
 ## Backend
 
-- 40 application tables plus `alembic_version`; current migration `2f6a9c31b7d4` applied to PostgreSQL Docker data.
+- 42 application tables plus `alembic_version`; current migration `9b7d1a2c4e5f` applied to PostgreSQL Docker data.
 - JWT auth, scrypt hashing, role guards, rate limiting, CORS for web and extension origins.
 - Public catalogue, search, slug/ID detail, deals, comparison, price history, deal score, fake-discount, buy/wait and warranty comparison.
 - Cart, watchlist, purchases, owner-scoped warranty, alerts, notifications, preferences, privacy export and account deletion.
@@ -35,6 +35,8 @@ Overall: the application, API, admin console, Chrome MV3 package, PWA, Docker st
 - AI chat/recommendations/providers plus authenticated conversation list/detail/delete; fallback works without external credentials.
 - Contacts, community reports/votes/leaderboard, campaigns, affiliate click recording and private pending reports.
 - Sandbox marketplace sellers/listings/orders/disputes with 5% demo fee split, idempotent orders and duplicate-dispute rejection; payment details rejected.
+- Coupon resale controls: seller lifecycle, evidence, retailer/brand/value/min-order/restrictions, encrypted coupon codes (Fernet key derived from `SECRET_KEY`), masked public payloads, duplicate fingerprint detection, buyer-only code reveal with audit, redemption tracking, buyer wallet, verified-purchase reviews, real reputation, invalid-coupon reports, listing suspension and admin report resolution.
+- Smart Coupon Matcher and Better Deal Alternative endpoints; savings dashboard separates verified and estimated savings; purchased-coupon expiry reminders.
 - Browser-extension exact-variant resolver and intelligence endpoint.
 - Admin APIs for users, products, variants, retailers, listings/prices, coupons, bank offers, community, marketplace, campaigns, audit, affiliate and integrations.
 - Celery worker/beat tasks for alerts and demo price refresh.
@@ -62,7 +64,8 @@ Notable behaviour:
 - Coupon wallet is explicitly localStorage-only and synchronises across tabs.
 - Admin catalogue/offers/campaigns support create/update flows; moderation actions require notes where an audit trail matters.
 - Shopping memory is opt-in, editable/deletable, and only consenting entries reach the Copilot.
-- Marketplace UI separates buyer orders, seller workspace, sandbox fee/payout and dispute controls.
+- Marketplace UI separates buyer orders, seller workspace, sandbox fee/payout and dispute controls; adds filters, coupon wallet with code reveal/redeem/report, listing withdrawal, review flow and encrypted-code safety.
+- Savings dashboard at `/dashboard/savings`; coupon wallet shows expiring saved coupons; cart exposes the Smart Coupon Matcher; product offers tab shows the Better Deal Alternative.
 - PWA service worker caches shell assets only, bypasses `/api` and private dashboard/admin routes, and provides `/offline`.
 
 ## Extension
@@ -85,18 +88,18 @@ Notable behaviour:
 
 | Check | Result |
 | --- | --- |
-| Backend Pytest | 81 passed |
+| Backend Pytest | 85 passed |
 | Frontend Vitest | 16 passed |
 | Playwright Chromium smoke | 12 passed |
 | Frontend typecheck | Passed |
-| Next production build | Passed, 44 routes |
-| Docker images | Backend, worker, beat, frontend rebuilt and started |
+| Next production build | Passed, 45 routes |
+| Docker images | Backend, worker, beat, frontend rebuilt and started with migration `9b7d1a2c4e5f` at head |
 | Docker services | db/redis/backend healthy; worker/beat/frontend up |
 | `/health` | Exact contract verified |
 | `/api/health` | PostgreSQL connected; actual counts returned |
 | `/api` proxy through frontend | Verified, including `/api/extension/resolve` |
 | New routes | `/dashboard/memory`, `/offline` and dedicated admin pages HTTP 200 |
-| Final workflow smoke | 14 authenticated API checks passed |
+| Docker coupon workflow | Creating, approving, buying, revealing, reviewing, savings, matcher and better-deal checks passed against PostgreSQL |
 | Persistence and permissions | 11 Docker-backed checks passed |
 | Extension-focused Playwright | 3 passed |
 | Final archives | Source, extension and documentation ZIPs passed `unzip -t`; PDF present |
@@ -124,7 +127,7 @@ Grades: **A** complete and verified locally, **B** complete with explicit demo/s
 | Alerts, notifications and recurring reminders | A | Pytest; external delivery honestly reports not configured |
 | Shopping memory and persisted AI Copilot | A | Consent/ownership tests, Playwright memory flow, fallback provider |
 | Community evidence and moderation | A | Pending-report privacy/vote tests, admin moderation |
-| Sandbox marketplace and disputes | B | Fee/idempotency/dispute tests; sandbox payment records only |
+| Coupon marketplace, code security, reputation and disputes | B | Encryption/duplicate/reveal/wallet/redeem/review/report/refund tests; sandbox payment records only |
 | Admin operations | A | Dedicated routes, API tests, audit trail |
 | Chrome MV3 extension | B | Parser/resolve/intelligence Playwright tests; manual unpacked load, not store-published |
 | PWA and offline shell | B | Manifest/icons/service worker/offline route; no offline live-price claims |

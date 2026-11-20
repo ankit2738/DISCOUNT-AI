@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.db import get_db
 from app.deps import require_admin
 from app.models import (
+    MarketplaceCouponReport,
     AffiliateClick,
     AuditLog,
     BankOffer,
@@ -35,6 +36,7 @@ from app.schemas import (
     BankOfferCreate,
     CampaignCreate,
     CouponCreate,
+    CouponReportResolve,
     ListingCreate,
     ListingPriceUpdate,
     ModerationRequest,
@@ -539,6 +541,53 @@ def admin_marketplace_listings(admin: User = Depends(require_admin), db: Session
     }
 
 
+@router.get("/marketplace/reports")
+def admin_marketplace_reports(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    reports = db.scalars(select(MarketplaceCouponReport).order_by(MarketplaceCouponReport.id.desc())).all()
+    return {
+        "items": [
+            {
+                "id": report.id,
+                "listing_id": report.listing_id,
+                "order_id": report.order_id,
+                "reporter_id": report.reporter_id,
+                "reason": report.reason,
+                "evidence_url": report.evidence_url,
+                "status": report.status,
+                "resolution": report.resolution,
+                "created_at": report.created_at.isoformat(),
+            }
+            for report in reports
+        ]
+    }
+
+
+@router.post("/marketplace/reports/{report_id}/resolve")
+def admin_resolve_marketplace_report(
+    report_id: int,
+    payload: CouponReportResolve,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    report = db.get(MarketplaceCouponReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.status != "open":
+        raise HTTPException(status_code=409, detail="Report already resolved")
+    report.status = payload.status
+    report.resolution = payload.resolution
+    report.resolved_at = datetime.now(timezone.utc)
+    listing = db.get(MarketplaceListing, report.listing_id)
+    if listing is not None and payload.status == "resolved_invalid":
+        listing.status = "suspended"
+        seller = db.get(MarketplaceSeller, listing.seller_id)
+        if seller is not None:
+            seller.dispute_count += 1
+    record_audit(db, admin.id, "admin.marketplace_report_resolve", "marketplace_coupon_report", report.id, after=payload.model_dump())
+    db.commit()
+    return {"id": report.id, "status": report.status, "listing_status": listing.status if listing else None}
+
+
 @router.patch("/marketplace/listings/{listing_id}")
 def moderate_marketplace_listing(
     listing_id: int,
@@ -546,15 +595,21 @@ def moderate_marketplace_listing(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    if payload.status not in {"approved", "rejected", "pending"}:
+    if payload.status not in {"approved", "rejected", "pending", "suspended"}:
         raise HTTPException(status_code=400, detail="Invalid listing moderation status")
     listing = db.get(MarketplaceListing, listing_id)
     if listing is None:
         raise HTTPException(status_code=404, detail="Listing not found")
+    if payload.status == "approved" and not listing.is_transfer_allowed:
+        raise HTTPException(status_code=400, detail="Issuer terms do not permit resale; listing cannot be approved")
+    if payload.status == "approved" and listing.status != "approved":
+        listing.approved_at = datetime.now(timezone.utc)
+    if payload.status in {"rejected", "suspended"}:
+        listing.rejection_reason = payload.note
     listing.status = payload.status
-    record_audit(db, admin.id, "admin.marketplace_listing_moderate", "marketplace_listing", listing.id, after={"status": payload.status})
+    record_audit(db, admin.id, "admin.marketplace_listing_moderate", "marketplace_listing", listing.id, after={"status": payload.status, "note": payload.note})
     db.commit()
-    return {"id": listing.id, "status": listing.status}
+    return {"id": listing.id, "status": listing.status, "rejection_reason": listing.rejection_reason}
 
 
 @router.get("/marketplace/sellers")
@@ -567,8 +622,11 @@ def admin_sellers(admin: User = Depends(require_admin), db: Session = Depends(ge
                 "user_id": seller.user_id,
                 "display_name": seller.display_name,
                 "status": seller.status,
-                "rating": money(seller.rating),
+                "rating": money(seller.rating) if seller.review_count else None,
                 "total_sales": seller.total_sales,
+                "is_verified": seller.is_verified,
+                "review_count": seller.review_count,
+                "dispute_count": seller.dispute_count,
             }
             for seller in sellers
         ]
@@ -588,6 +646,8 @@ def moderate_seller(
     if seller is None:
         raise HTTPException(status_code=404, detail="Seller not found")
     seller.status = payload.status
+    if payload.status == "approved":
+        seller.is_verified = True
     seller_user = db.get(User, seller.user_id)
     role_updated = False
     if seller_user is not None and seller_user.role != "admin":

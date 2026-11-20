@@ -19,6 +19,7 @@ export default function CartPage() {
   const [bankOfferId, setBankOfferId] = useState("");
   const [cardType, setCardType] = useState("credit");
   const [optimization, setOptimization] = useState<OptimizeResponse | null>(null);
+  const [couponMatches, setCouponMatches] = useState<{ items: { product_name: string | null; amount: number; best: { source: string; title: string; net_saving: number; expires_at: string | null } | null; candidates: { source: string; title: string; net_saving: number; coupon_id?: number; listing_id?: number }[] }[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +77,21 @@ export default function CartPage() {
       setOptimization(null);
     } catch (clearError) {
       setError(clearError instanceof Error ? clearError.message : "Could not clear cart");
+    }
+  }
+
+  async function findCoupons() {
+    if (!token || !cart) return;
+    try {
+      const payload = await apiFetch<{ items: { product_name: string | null; amount: number; best: { source: string; title: string; net_saving: number; expires_at: string | null } | null; candidates: { source: string; title: string; net_saving: number; coupon_id?: number; listing_id?: number }[] }[] }>("/api/coupons/match", {
+        method: "POST",
+        body: {
+          items: cart.items.map((item) => ({ listing_id: item.listing.id, amount: item.line_total, quantity: item.quantity })),
+        },
+      });
+      setCouponMatches(payload);
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : "Could not match coupons");
     }
   }
 
@@ -172,10 +188,33 @@ export default function CartPage() {
                 <Button className="w-full" onClick={() => void optimize()} disabled={cart.items.length === 0}>
                   <Sparkles className="mr-1 h-4 w-4" /> Optimise cart
                 </Button>
+                <Button variant="outline" className="w-full" onClick={() => void findCoupons()} disabled={cart.items.length === 0}>
+                  Find applicable coupons
+                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
+      )}
+
+      {couponMatches && (
+        <Card className="mt-6">
+          <CardHeader><CardTitle className="text-base">Smart coupon matcher</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {couponMatches.items.map((match, index) => (
+              <div key={`${match.product_name}-${index}`} className="rounded-lg border p-3">
+                <p className="font-medium">{match.product_name ?? "Cart item"} · {formatINR(match.amount)}</p>
+                {match.best ? (
+                  <p className="text-xs text-muted-foreground">
+                    Best: {match.best.title} ({match.best.source.replaceAll("_", " ")}) · net saving {formatINR(match.best.net_saving)}
+                    {match.best.expires_at ? ` · expires ${new Date(match.best.expires_at).toLocaleDateString("en-IN")}` : ""}
+                  </p>
+                ) : <p className="text-xs text-muted-foreground">No eligible coupon found for the current amount and retailer.</p>}
+                {match.candidates.length > 1 && <p className="mt-1 text-[11px] text-muted-foreground">{match.candidates.length} eligible option(s) checked for expiry, minimum order and product eligibility.</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {optimization && (
